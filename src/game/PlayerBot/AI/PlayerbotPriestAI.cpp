@@ -90,7 +90,7 @@ CombatManeuverReturns PlayerbotPriestAI::DoFirstCombatManeuver(Unit* pTarget)
         if (m_WaitUntil > m_ai.CurrentTime() && m_ai.GroupTankHoldsAggro())
         {
             if (PlayerbotAI::ORDERS_HEAL & m_ai.GetCombatOrder())
-                return HealPlayer(GetHealTarget());
+                return HealPlayerOrPet(GetHealTarget());
             else
                 return RETURN_NO_ACTION_OK; // wait it out
         }
@@ -235,56 +235,66 @@ CombatManeuverReturns PlayerbotPriestAI::DoNextCombatManeuverPVE(Unit* pTarget)
         if (ELUNES_GRACE && !m_bot.HasAura(ELUNES_GRACE, EFFECT_INDEX_0) && m_bot.IsSpellReady(ELUNES_GRACE) && CastSpell(ELUNES_GRACE, &m_bot))
             return RETURN_CONTINUE;
 
-        // If enemy comes in melee reach
-        if (meleeReach)
-        {
-            // Already healed self or tank. If healer, do nothing else to anger mob
-            if (m_ai.IsHealer())
-                return RETURN_NO_ACTION_OK; // In a sense, mission accomplished.
+        //// If enemy comes in melee reach
+        // Must always heal, so comment it.
+        //if (meleeReach)
+        //{
+        //    // Already healed self or tank. If healer, do nothing else to anger mob
+        //    if (m_ai.IsHealer())
+        //        return RETURN_NO_ACTION_OK; // In a sense, mission accomplished.
 
-            // Have threat, can't quickly lower it. 3 options remain: Stop attacking, lowlevel damage (wand), keep on keeping on.
-            if (newTarget->GetHealthPercent() > 25)
-            {
-                // If elite, do nothing and pray tank gets aggro off you
-                if (m_ai.IsElite(newTarget))
-                    return RETURN_NO_ACTION_OK;
+        //    // Have threat, can't quickly lower it. 3 options remain: Stop attacking, lowlevel damage (wand), keep on keeping on.
+        //    if (newTarget->GetHealthPercent() > 25)
+        //    {
+        //        // If elite, do nothing and pray tank gets aggro off you
+        //        if (m_ai.IsElite(newTarget))
+        //            return RETURN_NO_ACTION_OK;
 
-                // Not an elite. You could insert PSYCHIC SCREAM here but in any PvE situation that's 90-95% likely
-                // to worsen the situation for the group. ... So please don't.
-                return CastSpell(SHOOT, pTarget);
-            }
-        }
+        //        // Not an elite. You could insert PSYCHIC SCREAM here but in any PvE situation that's 90-95% likely
+        //        // to worsen the situation for the group. ... So please don't.
+        //        return CastSpell(SHOOT, pTarget);
+        //    }
+        //}
     }
 
     // Dispel magic/disease
-    if (m_ai.HasDispelOrder() && DispelPlayer() & RETURN_CONTINUE)
+    if (m_ai.HasDispelOrder() && DispelPlayerOrPet() & RETURN_CONTINUE)
         return RETURN_CONTINUE;
 
     // Damage tweaking for healers
     if (m_ai.IsHealer())
     {
-        // Heal (try to pick a target by on common rules, than heal using each PlayerbotClassAI HealPlayer() method)
+        // Heal (try to pick a target by on common rules, than heal using each PlayerbotClassAI HealPlayerOrPet() method)
         if (FindTargetAndHeal())
             return RETURN_CONTINUE;
 
-        // No one needs to be healed: do small damage instead
-        // If target is elite and not handled by MT: do nothing
-        if (m_ai.IsElite(pTarget) && mainTank && mainTank->GetVictim() != pTarget)
-            return RETURN_NO_ACTION_OK;
+        if (m_ai.IsOnlyHealer())
+        {
+            // No one needs to be healed: do small damage instead
+            // If target is elite and not handled by MT: do nothing
+            if (m_ai.IsElite(pTarget) && mainTank && mainTank->GetVictim() != pTarget)
+                return RETURN_NO_ACTION_OK;
 
-        // Cast Shadow Word:Pain on current target and keep its up (if mana >= 40% or target HP < 15%)
-        if (SHADOW_WORD_PAIN > 0 && !PlayerbotAI::IsImmuneToSchool(pTarget, SPELL_SCHOOL_MASK_SHADOW) && m_ai.In_Reach(pTarget, SHADOW_WORD_PAIN) && !pTarget->HasAura(SHADOW_WORD_PAIN, EFFECT_INDEX_0) &&
+            // Cast Shadow Word:Pain on current target and keep its up (if mana >= 40% or target HP < 15%)
+            if (SHADOW_WORD_PAIN > 0 && !PlayerbotAI::IsImmuneToSchool(pTarget, SPELL_SCHOOL_MASK_SHADOW) && m_ai.In_Reach(pTarget, SHADOW_WORD_PAIN) && !pTarget->HasAura(SHADOW_WORD_PAIN, EFFECT_INDEX_0) &&
                 (pTarget->GetHealthPercent() < 15 || m_ai.GetManaPercent() >= 40) && CastSpell(SHADOW_WORD_PAIN, pTarget))
-            return RETURN_CONTINUE;
-        else // else shoot at it
-            return CastSpell(SHOOT, pTarget);
+                return RETURN_CONTINUE;
+            else // else shoot at it
+                return CastSpell(SHOOT, pTarget);
+        }
     }
 
     // Damage Spells
     switch (spec)
     {
         case PRIEST_SPEC_HOLY:
-            if (HOLY_FIRE > 0 && m_ai.In_Reach(pTarget, HOLY_FIRE) && !pTarget->HasAura(HOLY_FIRE, EFFECT_INDEX_0) && CastSpell(HOLY_FIRE, pTarget))
+            //if (HOLY_FIRE > 0 && m_ai.In_Reach(pTarget, HOLY_FIRE) && !pTarget->HasAura(HOLY_FIRE, EFFECT_INDEX_0) && CastSpell(HOLY_FIRE, pTarget))
+            //    return RETURN_CONTINUE;
+            if (DEVOURING_PLAGUE > 0 && !PlayerbotAI::IsImmuneToSchool(pTarget, SPELL_SCHOOL_MASK_SHADOW) && m_ai.In_Reach(pTarget, DEVOURING_PLAGUE) && !pTarget->HasAura(DEVOURING_PLAGUE, EFFECT_INDEX_0) && CastSpell(DEVOURING_PLAGUE, pTarget))
+                return RETURN_CONTINUE;
+            if (SHADOW_WORD_PAIN > 0 && !PlayerbotAI::IsImmuneToSchool(pTarget, SPELL_SCHOOL_MASK_SHADOW) && m_ai.In_Reach(pTarget, SHADOW_WORD_PAIN) && !pTarget->HasAura(SHADOW_WORD_PAIN, EFFECT_INDEX_0) && CastSpell(SHADOW_WORD_PAIN, pTarget))
+                return RETURN_CONTINUE;
+            if (MIND_BLAST > 0 && !PlayerbotAI::IsImmuneToSchool(pTarget, SPELL_SCHOOL_MASK_SHADOW) && m_ai.In_Reach(pTarget, MIND_BLAST) && (m_bot.IsSpellReady(MIND_BLAST)) && CastSpell(MIND_BLAST, pTarget))
                 return RETURN_CONTINUE;
             if (SMITE > 0 && m_ai.In_Reach(pTarget, SMITE) && CastSpell(SMITE, pTarget))
                 return RETURN_CONTINUE;
@@ -370,9 +380,9 @@ CombatManeuverReturns PlayerbotPriestAI::DoNextCombatManeuverPVP(Unit* pTarget)
     return DoNextCombatManeuverPVE(pTarget); // TODO: bad idea perhaps, but better than the alternative
 }
 
-CombatManeuverReturns PlayerbotPriestAI::HealPlayer(Player* target)
+CombatManeuverReturns PlayerbotPriestAI::HealPlayerOrPet(Unit* target)
 {
-    CombatManeuverReturns r = PlayerbotClassAI::HealPlayer(target);
+    CombatManeuverReturns r = PlayerbotClassAI::HealPlayerOrPet(target);
     if (r != RETURN_NO_ACTION_OK)
         return r;
 
@@ -436,12 +446,12 @@ CombatManeuverReturns PlayerbotPriestAI::ResurrectPlayer(Player* target)
     return RETURN_NO_ACTION_ERROR; // not error per se - possibly just OOM
 }
 
-CombatManeuverReturns PlayerbotPriestAI::DispelPlayer(Player* /*target*/)
+CombatManeuverReturns PlayerbotPriestAI::DispelPlayerOrPet(Unit* /*target*/)
 {
     // Remove negative magic on group members
-    if (Player* cursedTarget = GetDispelTarget(DISPEL_MAGIC))
+    if (Unit* cursedTarget = GetDispelTarget(DISPEL_MAGIC))
     {
-        CombatManeuverReturns r = PlayerbotClassAI::DispelPlayer(cursedTarget);
+        CombatManeuverReturns r = PlayerbotClassAI::DispelPlayerOrPet(cursedTarget);
         if (r != RETURN_NO_ACTION_OK)
             return r;
 
@@ -450,9 +460,9 @@ CombatManeuverReturns PlayerbotPriestAI::DispelPlayer(Player* /*target*/)
     }
 
     // Remove disease on group members
-    if (Player* diseasedTarget = GetDispelTarget(DISPEL_DISEASE))
+    if (Unit* diseasedTarget = GetDispelTarget(DISPEL_DISEASE))
     {
-        CombatManeuverReturns r = PlayerbotClassAI::DispelPlayer(diseasedTarget);
+        CombatManeuverReturns r = PlayerbotClassAI::DispelPlayerOrPet(diseasedTarget);
         if (r != RETURN_NO_ACTION_OK)
             return r;
 
@@ -475,7 +485,7 @@ void PlayerbotPriestAI::DoNonCombatActions()
         return;
 
     // Dispel magic/disease
-    if (m_ai.HasDispelOrder() && DispelPlayer() & RETURN_CONTINUE)
+    if (m_ai.HasDispelOrder() && DispelPlayerOrPet() & RETURN_CONTINUE)
         return;
 
     // Revive
@@ -491,14 +501,14 @@ void PlayerbotPriestAI::DoNonCombatActions()
     // Heal
     if (m_ai.IsHealer())
     {
-        if (HealPlayer(GetHealTarget()) & RETURN_CONTINUE)
+        if (HealPlayerOrPet(GetHealTarget()) & RETURN_CONTINUE)
             return;// RETURN_CONTINUE;
     }
     else
     {
         // Is this desirable? Debatable.
         // TODO: In a group/raid with a healer you'd want this bot to focus on DPS (it's not specced/geared for healing either)
-        if (HealPlayer(&m_bot) & RETURN_CONTINUE)
+        if (HealPlayerOrPet(&m_bot) & RETURN_CONTINUE)
             return;// RETURN_CONTINUE;
     }
 
@@ -517,7 +527,7 @@ void PlayerbotPriestAI::DoNonCombatActions()
         if (Buff(&PlayerbotPriestAI::BuffHelper, PRAYER_OF_SPIRIT) & RETURN_CONTINUE)
             return;
     }
-    else if (Buff(&PlayerbotPriestAI::BuffHelper, DIVINE_SPIRIT, (JOB_ALL | JOB_MANAONLY)) & RETURN_CONTINUE)
+    else if (Buff(&PlayerbotPriestAI::BuffHelper, DIVINE_SPIRIT, JOB_ALL) & RETURN_CONTINUE)
         return;
 
     if (NeedGroupBuff(PRAYER_OF_SHADOW_PROTECTION, SHADOW_PROTECTION) && m_ai.HasSpellReagents(PRAYER_OF_FORTITUDE))
@@ -538,6 +548,20 @@ void PlayerbotPriestAI::DoNonCombatActions()
     {
         m_ai.CastSpell(SHADOWMELD, m_bot);
     }
+
+    // Search and apply stones to weapons
+   // Mainhand ...
+    Item* oil, * weapon;
+    weapon = m_bot.GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_MAINHAND);
+    if (weapon && weapon->GetEnchantmentId(TEMP_ENCHANTMENT_SLOT) == 0)
+    {
+        oil = m_ai.FindOilFor(!m_ai.IsDPS());
+        if (oil)
+        {
+            m_ai.UseItem(oil, EQUIPMENT_SLOT_MAINHAND);
+            m_ai.SetIgnoreUpdateTime(5);
+        }
+    }
 } // end DoNonCombatActions
 
 // TODO: this and mage's BuffHelper are identical and thus could probably go in PlayerbotClassAI.cpp somewhere
@@ -548,6 +572,8 @@ bool PlayerbotPriestAI::BuffHelper(PlayerbotAI* ai, uint32 spellId, Unit* target
     if (!target)      return false;
 
     Pet* pet = target->GetPet();
+    pet = pet && pet->IsAlive() ? pet : nullptr;
+    
     if (pet && !pet->HasAuraType(SPELL_AURA_MOD_UNATTACKABLE) && ai->Buff(spellId, pet) == SPELL_CAST_OK)
         return true;
 

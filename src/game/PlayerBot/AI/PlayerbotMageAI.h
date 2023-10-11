@@ -117,7 +117,7 @@ class PlayerbotMageAI : PlayerbotClassAI
         CombatManeuverReturns CastSpell(uint32 nextAction, Unit* pTarget = nullptr) { return CastSpellWand(nextAction, pTarget, SHOOT); }
 
         // Dispel disease or negative magic effects from the target
-        CombatManeuverReturns DispelPlayer(Player* target) override;
+        CombatManeuverReturns DispelPlayerOrPet(Unit* target) override;
 
         static bool BuffHelper(PlayerbotAI* ai, uint32 spellId, Unit* target);
 

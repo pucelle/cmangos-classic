@@ -365,6 +365,16 @@ void MotionMaster::MoveFollow(Unit* target, float dist, float angle, bool asMain
     Mutate(new FollowMovementGenerator(*target, dist, angle, asMain, (m_owner->IsPlayer() && !m_owner->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PLAYER_CONTROLLED)), alwaysBoost));
 }
 
+void MotionMaster::MoveFarAway(Unit* source)
+{
+    if (!source)
+        return;
+
+    DEBUG_FILTER_LOG(LOG_FILTER_AI_AND_MOVEGENSS, "%s move far away from %s", m_owner->GetGuidStr().c_str(), source->GetGuidStr().c_str());
+
+    Mutate(new FarAwayMovementGenerator(source));
+}
+
 void MotionMaster::MoveInFormation(FormationSlotDataSPtr& sData, bool asMain /*= false*/)
 {
     if (m_owner->hasUnitState(UNIT_STAT_LOST_CONTROL))

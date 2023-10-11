@@ -22,6 +22,7 @@
 #include "Entities/Creature.h"
 #include "Globals/SharedDefines.h"
 #include "Spells/SpellAuras.h"
+#include "World/World.h"
 
 /*#######################################
 ########                         ########
@@ -68,6 +69,15 @@ bool Player::UpdateStats(Stats stat)
     UpdateSpellDamageBonus();
     UpdateManaRegen();
 
+    // Update pet's stats.
+    if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED))
+    {
+        Pet* pet = GetPet();
+        if (pet != NULL) {
+            pet->UpdateAllStats();
+        }
+    }
+
     return true;
 }
 
@@ -103,6 +113,15 @@ bool Player::UpdateAllStats()
     UpdateManaRegen();
     for (int i = SPELL_SCHOOL_NORMAL; i < MAX_SPELL_SCHOOL; ++i)
         UpdateResistances(i);
+
+    // Update pet's stats.
+    if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED))
+    {
+        Pet* pet = GetPet();
+        if (pet != NULL) {
+            pet->UpdateAllStats();
+        }
+    }
 
     return true;
 }
@@ -519,6 +538,13 @@ void Player::UpdateManaRegen()
     if (modManaRegenInterrupt > 100)
         modManaRegenInterrupt = 100;
 
+    // Reset minimum mana regenerate rate.
+    if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED))
+    {
+        int32 minimumInterrupt = int32(100.0f * sWorld.getConfig(CONFIG_GAME_ENHANCE_MINIMUM_MANA_REGEN_RATE));
+        modManaRegenInterrupt = std::max(modManaRegenInterrupt, minimumInterrupt);
+    }
+
     m_modManaRegenInterrupt = power_regen_mp5 + power_regen * modManaRegenInterrupt / 100.0f;
 
     m_modManaRegen = power_regen_mp5 + power_regen;
@@ -727,6 +753,19 @@ bool Pet::UpdateStats(Stats stat)
 
     // value = ((base_value * base_pct) + total_value) * total_pct
     float value  = GetTotalStatValue(stat);
+    
+    // Gain from owner's stat.
+    if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED)
+        && GetOwnerGuid().IsPlayer())
+    {
+        Unit* owner = GetOwner();
+        if (owner)
+        {
+            float valueFromOwner = float(owner->GetTotalStatValue(stat)) * sWorld.getConfig(CONFIG_GAME_ENHANCE_PET_GAIN_STAT_RATE);
+            value += valueFromOwner;
+        }
+    }
+
     SetStat(stat, int32(value));
 
     switch (stat)
@@ -753,6 +792,9 @@ bool Pet::UpdateAllStats()
 
     for (int i = SPELL_SCHOOL_NORMAL; i < MAX_SPELL_SCHOOL; ++i)
         UpdateResistances(i);
+
+    GainCriticalChance();
+    GainDodgeChance();
 
     return true;
 }
@@ -820,6 +862,24 @@ void Pet::UpdateAttackPowerAndDamage(bool ranged)
     float base_attPower  = GetModifierValue(unitMod, BASE_VALUE) * GetModifierValue(unitMod, BASE_PCT);
     float attPowerMod = GetModifierValue(unitMod, TOTAL_VALUE);
     float attPowerMultiplier = GetModifierValue(unitMod, TOTAL_PCT) - 1.0f;
+
+    // Gain from owner's attact power.
+    if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED)
+        && GetOwnerGuid().IsPlayer())
+    {
+        Unit* owner = GetOwner();
+        if (owner)
+        {
+            if (getPetType() == HUNTER_PET)
+            {
+                attPowerMod += float(owner->GetTotalAttackPowerValue(RANGED_ATTACK)) * sWorld.getConfig(CONFIG_GAME_ENHANCE_PET_GAIN_ATTACK_POWER_RATE);
+            }
+            else
+            {
+                attPowerMod += float(owner->GetTotalAttackPowerValue(BASE_ATTACK)) * sWorld.getConfig(CONFIG_GAME_ENHANCE_PET_GAIN_ATTACK_POWER_RATE);
+            }
+        }
+    }
 
     // UNIT_FIELD_(RANGED)_ATTACK_POWER field
     SetInt32Value(UNIT_FIELD_ATTACK_POWER, (int32)base_attPower);
@@ -903,4 +963,43 @@ void Pet::UpdateDamagePhysical(WeaponAttackType attType)
 
     SetStatFloatValue(fieldmin, mindamage);
     SetStatFloatValue(fieldmax, maxdamage);
+}
+
+/** Update pet's critical percentage to make it gain from player owner property. */
+void Pet::GainCriticalChance()
+{
+    if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED)
+        && sWorld.getConfig(CONFIG_GAME_ENHANCE_PET_GAIN_CRITICAL_RATE) > 0.0f
+        && GetOwner()
+        && GetOwner()->IsPlayer())
+    {
+        float rate = sWorld.getConfig(CONFIG_GAME_ENHANCE_PET_GAIN_CRITICAL_RATE);
+        Player* owner = (Player*)(GetOwner());
+
+        for (uint8 i = BASE_ATTACK; i < MAX_ATTACK; i++)
+        {
+            m_modCritChance[i] = owner->m_modCritChance[i] * rate;
+        }
+
+        for (uint8 i = SPELL_SCHOOL_NORMAL; i < MAX_SPELL_SCHOOL; i++)
+        {
+            m_modSpellCritChance[i] = owner->m_modSpellCritChance[i] * rate;
+        }
+    }
+}
+
+
+/** Update pet's dodge to make it gain from player owner property. */
+void Pet::GainDodgeChance()
+{
+    if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED)
+        && sWorld.getConfig(CONFIG_GAME_ENHANCE_PET_GAIN_DODGE_RATE) > 0.0f
+        && GetOwner()
+        && GetOwner()->IsPlayer())
+    {
+        float rate = sWorld.getConfig(CONFIG_GAME_ENHANCE_PET_GAIN_DODGE_RATE);
+        Player* owner = (Player*)(GetOwner());
+
+        m_modDodgeChance = owner->m_modDodgeChance * rate;
+    }
 }

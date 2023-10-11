@@ -808,6 +808,57 @@ void World::LoadConfigSettings(bool reload)
     setConfig(CONFIG_BOOL_PATH_FIND_OPTIMIZE, "PathFinder.OptimizePath", true);
     setConfig(CONFIG_BOOL_PATH_FIND_NORMALIZE_Z, "PathFinder.NormalizeZ", false);
 
+    // Player enhancement.
+    setConfig(CONFIG_GAME_ENHANCE_ENABLED, "GameEnhance.Enabled", false);
+    setConfig(CONFIG_GAME_ENHANCE_HUNTER_PET_KEEPS_DAMAGE_SCHOOL, "GameEnhance.HunterPetKeepsDamageSchool", false);
+    setConfig(CONFIG_GAME_ENHANCE_HUNTER_PET_KEEPS_ARMOR, "GameEnhance.HunterPetKeepsArmor", false);
+    setConfig(CONFIG_GAME_ENHANCE_HUNTER_PET_KEEPS_SIZE, "GameEnhance.HunterPetKeepsSize", false);
+    setConfig(CONFIG_GAME_ENHANCE_HUNTER_PET_KEEPS_RESISTANCE, "GameEnhance.HunterPetKeepsResistance", false);
+    setConfigMinMax(CONFIG_GAME_ENHANCE_HUNTER_PET_RARE_GAIN_STAT_RATE, "GameEnhance.HunterPetRareGainStatRate", 0.0f, 0.0f, 0.5f);
+    setConfigMinMax(CONFIG_GAME_ENHANCE_WARLOCK_PET_DAMAGE_BONUS_RATE, "GameEnhance.WarlockPetDamageBonusRate", 0.15f, 0.0f, 1.0f);
+    setConfigMinMax(CONFIG_GAME_ENHANCE_MAGE_PET_DAMAGE_BONUS_RATE, "GameEnhance.MagePetDamageBonusRate", 0.4f, 0.0f, 1.0f);
+    setConfigMinMax(CONFIG_GAME_ENHANCE_PET_GAIN_STAT_RATE, "GameEnhance.PetGainStatRate", 0.0f, 0.0f, 1.0f);
+    setConfigMinMax(CONFIG_GAME_ENHANCE_PET_GAIN_ATTACK_POWER_RATE, "GameEnhance.PetGainAttactPowerRate", 0.0f, 0.0f, 1.0f);
+    setConfigMinMax(CONFIG_GAME_ENHANCE_PET_GAIN_CRITICAL_RATE, "GameEnhance.PetGainCriticalRate", 0.0f, 0.0f, 1.0f);
+    setConfigMinMax(CONFIG_GAME_ENHANCE_PET_GAIN_DODGE_RATE, "GameEnhance.PetGainDodgeRate", 0.0f, 0.0f, 1.0f);
+    setConfigMinMax(CONFIG_GAME_ENHANCE_RESTORE_HEALTH_RATE_IN_COMBAT, "GameEnhance.RestoreHealthRateInCombat", 0.0f, 0.0f, 1.0f);
+    setConfigMinMax(CONFIG_GAME_ENHANCE_RESTORE_HEALTH_RATE_WHEN_SIT, "GameEnhance.RestoreHealthRateWhenSit", 1.5f, 1.0f, 5.0f);
+    setConfigMinMax(CONFIG_GAME_ENHANCE_CRIT_FROM_AGILITY_RATE, "GameEnhance.CritFromAgilityRate", 0.0f, 0.0f, 100.0f);
+    setConfigMinMax(CONFIG_GAME_ENHANCE_DODGE_FROM_AGILITY_RATE, "GameEnhance.DodgeFromAgilityRate", 0.0f, 0.0f, 100.0f);
+    setConfigMinMax(CONFIG_GAME_ENHANCE_SPELL_CRIT_FROM_INTELLECT_RATE, "GameEnhance.SpellCritFromIntellectRate", 0.0f, 0.0f, 100.0f);
+    setConfigMinMax(CONFIG_GAME_ENHANCE_HP_REGENT_PER_SPIRIT, "GameEnhance.HPRegenRerSpirit", 0.0f, 0.0f, 10.0f);
+    setConfigMinMax(CONFIG_GAME_ENHANCE_MP_REGENT_PER_SPIRIT, "GameEnhance.MPRegenRerSpirit", 0.0f, 0.0f, 10.0f);
+    setConfigMinMax(CONFIG_GAME_ENHANCE_MINIMUM_MANA_REGEN_RATE, "GameEnhance.MinimumManaRegenRate", 0.0f, 0.0f, 1.0f);
+    setConfigMinMax(CONFIG_GAME_ENHANCE_BASE_MELEE_HIT_CHANCE, "GameEnhance.BaseMeleeHitChance", 0.0f, 0.0f, 100.0f);
+    setConfigMinMax(CONFIG_GAME_ENHANCE_BASE_MELEE_DODGE_CHANCE, "GameEnhance.BaseMeleeDodgeChance", 0.0f, 0.0f, 100.0f);
+    setConfigMinMax(CONFIG_GAME_ENHANCE_BASE_MELEE_PARRY_CHANCE, "GameEnhance.BaseMeleeParryChance", 0.0f, 0.0f, 100.0f);
+    setConfigMinMax(CONFIG_GAME_ENHANCE_BASE_MELEE_BLOCK_CHANCE, "GameEnhance.BaseMeleeBlockChance", 0.0f, 0.0f, 100.0f);
+    setConfigMinMax(CONFIG_GAME_ENHANCE_BASE_SPELL_HIT_CHANCE, "GameEnhance.BaseSpellHitChance", 0.0f, 0.0f, 100.0f);
+    setConfigMinMax(CONFIG_GAME_ENHANCE_LOW_HIT_CHANCE_REDUCE_PER_LEVEL, "GameEnhance.LowHitChanceReducePerLevel", 0, 0, 5);
+    setConfigMinMax(CONFIG_GAME_ENHANCE_HIGH_HIT_CHANCE_REDUCE_PER_LEVEL, "GameEnhance.HighHitChanceReducePerLevel", 0, 0, 10);
+    setConfigMinMax(CONFIG_GAME_ENHANCE_OFFHAND_HIT_CHANCE_REDUCE, "GameEnhance.OffHandHitChanceReduce", 0, 0, 20);
+    setConfigMinMax(CONFIG_GAME_ENHANCE_OFFHAND_DAMAGE_RATE, "GameEnhance.OffHandDamageRate", 0.5, 0.5, 1.0);
+    setConfigMinMax(CONFIG_GAME_ENHANCE_SPELL_TRIGGER_CHANCE_RATE, "GameEnhance.SpellTriggerChanceRate", 1.0, 1.0, 5.0);
+    setConfigMinMax(CONFIG_GAME_ENHANCE_SPELL_CRITIAL_BONUS_RATE, "GameEnhance.SpellCritialBonusRate", 0.5f, 0.0f, 1.0f);
+    setConfig(CONFIG_GAME_ENHANCE_DOT_GAIN_FROM_CRITICAL, "GameEnhance.DotGainFromCritial", false);
+    setConfig(CONFIG_GAME_ENHANCE_ACCOUNT_SHARES_RIDING_SKILLS, "GameEnhance.AccountSharesRidingSkills", false);
+    setConfig(CONFIG_GAME_ENHANCE_ACCOUNT_SHARES_PROFESSION_SKILLS, "GameEnhance.AccountSharesProfessionSkills", false);
+    setConfig(CONFIG_GAME_ENHANCE_ACCOUNT_SHARES_FINDING_TREASURE, "GameEnhance.AccountSharesFindingTreasure", false);
+    setConfig(CONFIG_GAME_ENHANCE_BALANCE_DROP_GROUP, "GameEnhance.BalanceDropGroup", false);
+    setConfigMinMax(CONFIG_GAME_ENHANCE_RARE_RESPAWN_TIME_RATE, "GameEnhance.RareRespawnTimeRate", 1.0f, 0.1f, 10.0f);
+    setConfigMinMax(CONFIG_GAME_ENHANCE_MAIL_UNTIL_EXPIRED_DAYS, "GameEnhance.MailUntilExpiredDays", 30, 3, 1024);
+    setConfigMinMax(CONFIG_GAME_ENHANCE_MAIL_MAX_COUNT, "GameEnhance.MailMaxCount", 100, 100, 255);
+    setConfig(CONFIG_GAME_ENHANCE_MAIL_CAN_SEND_TO_SELF, "GameEnhance.MailCanSendToSelf", false);
+    setConfigMinMax(CONFIG_GAME_ENHANCE_DUNGEON_5MAN_CREATURE_HEALTH_RATE, "GameEnhance.Dungen5ManCreatureHealthRate", 1.0f, 0.1f, 2.0f);
+    setConfigMinMax(CONFIG_GAME_ENHANCE_DUNGEON_5MAN_CREATURE_DAMAGE_RATE, "GameEnhance.Dungen5ManCreatureDamageRate", 1.0f, 0.1f, 2.0f);
+    setConfigMinMax(CONFIG_GAME_ENHANCE_DUNGEON_10MAN_CREATURE_HEALTH_RATE, "GameEnhance.Dungen10ManCreatureHealthRate", 1.0f, 0.1f, 2.0f);
+    setConfigMinMax(CONFIG_GAME_ENHANCE_DUNGEON_10MAN_CREATURE_DAMAGE_RATE, "GameEnhance.Dungen10ManCreatureDamageRate", 1.0f, 0.1f, 2.0f);
+    setConfigMinMax(CONFIG_GAME_ENHANCE_DUNGEON_15MAN_CREATURE_HEALTH_RATE, "GameEnhance.Dungen15ManCreatureHealthRate", 1.0f, 0.1f, 2.0f);
+    setConfigMinMax(CONFIG_GAME_ENHANCE_DUNGEON_15MAN_CREATURE_DAMAGE_RATE, "GameEnhance.Dungen15ManCreatureDamageRate", 1.0f, 0.1f, 2.0f);
+    setConfigMinMax(CONFIG_GAME_ENHANCE_DUNGEON_20MAN_CREATURE_HEALTH_RATE, "GameEnhance.Dungen20ManCreatureHealthRate", 1.0f, 0.1f, 2.0f);
+    setConfigMinMax(CONFIG_GAME_ENHANCE_DUNGEON_20MAN_CREATURE_DAMAGE_RATE, "GameEnhance.Dungen20ManCreatureDamageRate", 1.0f, 0.1f, 2.0f);
+    setConfigMinMax(CONFIG_GAME_ENHANCE_DUNGEON_40MAN_CREATURE_HEALTH_RATE, "GameEnhance.Dungen40ManCreatureHealthRate", 1.0f, 0.1f, 2.0f);
+    setConfigMinMax(CONFIG_GAME_ENHANCE_DUNGEON_40MAN_CREATURE_DAMAGE_RATE, "GameEnhance.Dungen40ManCreatureDamageRate", 1.0f, 0.1f, 2.0f);
     sLog.outString();
 }
 

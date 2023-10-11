@@ -114,11 +114,11 @@ class PlayerbotDruidAI : PlayerbotClassAI
         CombatManeuverReturns _DoNextPVECombatManeuverHeal();
 
         // Heals the target based off its hps
-        CombatManeuverReturns HealPlayer(Player* target) override;
+        CombatManeuverReturns HealPlayerOrPet(Unit* target) override;
         // Resurrects the target
         CombatManeuverReturns ResurrectPlayer(Player* target) override;
         // Dispel disease or negative magic effects from an internally selected target
-        CombatManeuverReturns DispelPlayer(Player* target = nullptr);
+        CombatManeuverReturns DispelPlayerOrPet(Unit* target = nullptr);
 
         static bool BuffHelper(PlayerbotAI* ai, uint32 spellId, Unit* target);
         // Callback method to reset shapeshift forms blocking buffs and heals

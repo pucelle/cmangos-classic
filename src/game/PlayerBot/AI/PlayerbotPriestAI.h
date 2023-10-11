@@ -103,11 +103,11 @@ class PlayerbotPriestAI : PlayerbotClassAI
         CombatManeuverReturns CastSpell(uint32 nextAction, Unit* pTarget = nullptr) { return CastSpellWand(nextAction, pTarget, SHOOT); }
 
         // Heals the target based off its hps
-        CombatManeuverReturns HealPlayer(Player* target) override;
+        CombatManeuverReturns HealPlayerOrPet(Unit* target) override;
         // Resurrects the target
         CombatManeuverReturns ResurrectPlayer(Player* target) override;
         // Dispel disease or negative magic effects from an internally selected target
-        CombatManeuverReturns DispelPlayer(Player* target = nullptr);
+        CombatManeuverReturns DispelPlayerOrPet(Unit* target = nullptr);
 
         static bool BuffHelper(PlayerbotAI* ai, uint32 spellId, Unit* target);
 

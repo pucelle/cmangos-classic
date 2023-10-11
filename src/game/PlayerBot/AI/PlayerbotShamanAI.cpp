@@ -107,7 +107,7 @@ CombatManeuverReturns PlayerbotShamanAI::DoFirstCombatManeuver(Unit* pTarget)
         if (m_WaitUntil > m_ai.CurrentTime() && m_ai.GroupTankHoldsAggro())
         {
             if (PlayerbotAI::ORDERS_HEAL & m_ai.GetCombatOrder())
-                return HealPlayer(GetHealTarget());
+                return HealPlayerOrPet(GetHealTarget());
             else
                 return RETURN_NO_ACTION_OK; // wait it out
         }
@@ -181,10 +181,10 @@ CombatManeuverReturns PlayerbotShamanAI::DoNextCombatManeuverPVE(Unit* pTarget)
         m_ai.SetCombatStyle(PlayerbotAI::COMBAT_MELEE);
 
     // Dispel disease/poison
-    if (m_ai.HasDispelOrder() && DispelPlayer() & RETURN_CONTINUE)
+    if (m_ai.HasDispelOrder() && DispelPlayerOrPet() & RETURN_CONTINUE)
         return RETURN_CONTINUE;
 
-    // Heal (try to pick a target by on common rules, than heal using each PlayerbotClassAI HealPlayer() method)
+    // Heal (try to pick a target by on common rules, than heal using each PlayerbotClassAI HealPlayerOrPet() method)
     if (FindTargetAndHeal())
         return RETURN_CONTINUE;
 
@@ -229,8 +229,8 @@ CombatManeuverReturns PlayerbotShamanAI::DoNextCombatManeuverPVP(Unit* pTarget)
     CheckShields();
     UseCooldowns();
 
-    Player* healTarget = (m_ai.GetScenarioType() == PlayerbotAI::SCENARIO_PVP_DUEL) ? GetHealTarget() : &m_bot;
-    if (HealPlayer(healTarget) & (RETURN_NO_ACTION_OK | RETURN_CONTINUE))
+    Unit* healTarget = (m_ai.GetScenarioType() == PlayerbotAI::SCENARIO_PVP_DUEL) ? GetHealTarget() : &m_bot;
+    if (HealPlayerOrPet(healTarget) & (RETURN_NO_ACTION_OK | RETURN_CONTINUE))
         return RETURN_CONTINUE;
     if (m_ai.CastSpell(LIGHTNING_BOLT) == SPELL_CAST_OK)
         return RETURN_CONTINUE;
@@ -238,9 +238,9 @@ CombatManeuverReturns PlayerbotShamanAI::DoNextCombatManeuverPVP(Unit* pTarget)
     return DoNextCombatManeuverPVE(pTarget); // TODO: bad idea perhaps, but better than the alternative
 }
 
-CombatManeuverReturns PlayerbotShamanAI::HealPlayer(Player* target)
+CombatManeuverReturns PlayerbotShamanAI::HealPlayerOrPet(Unit* target)
 {
-    CombatManeuverReturns r = PlayerbotClassAI::HealPlayer(target);
+    CombatManeuverReturns r = PlayerbotClassAI::HealPlayerOrPet(target);
     if (r != RETURN_NO_ACTION_OK)
         return r;
 
@@ -291,12 +291,12 @@ CombatManeuverReturns PlayerbotShamanAI::ResurrectPlayer(Player* target)
     return RETURN_NO_ACTION_ERROR; // not error per se - possibly just OOM
 }
 
-CombatManeuverReturns PlayerbotShamanAI::DispelPlayer(Player* /*target*/)
+CombatManeuverReturns PlayerbotShamanAI::DispelPlayerOrPet(Unit* /*target*/)
 {
     // Remove poison on group members
-    if (Player* poisonedTarget = GetDispelTarget(DISPEL_POISON))
+    if (Unit* poisonedTarget = GetDispelTarget(DISPEL_POISON))
     {
-        CombatManeuverReturns r = PlayerbotClassAI::DispelPlayer(poisonedTarget);
+        CombatManeuverReturns r = PlayerbotClassAI::DispelPlayerOrPet(poisonedTarget);
         if (r != RETURN_NO_ACTION_OK)
             return r;
 
@@ -305,9 +305,9 @@ CombatManeuverReturns PlayerbotShamanAI::DispelPlayer(Player* /*target*/)
     }
 
     // Remove disease on group members
-    if (Player* diseasedTarget = GetDispelTarget(DISPEL_DISEASE))
+    if (Unit* diseasedTarget = GetDispelTarget(DISPEL_DISEASE))
     {
-        CombatManeuverReturns r = PlayerbotClassAI::DispelPlayer(diseasedTarget);
+        CombatManeuverReturns r = PlayerbotClassAI::DispelPlayerOrPet(diseasedTarget);
         if (r != RETURN_NO_ACTION_OK)
             return r;
 
@@ -436,7 +436,7 @@ void PlayerbotShamanAI::DoNonCombatActions()
     if (!m_bot.IsAlive() || m_bot.IsInDuel()) return;
 
     // Dispel disease/poison
-    if (m_ai.HasDispelOrder() && DispelPlayer() & RETURN_CONTINUE)
+    if (m_ai.HasDispelOrder() && DispelPlayerOrPet() & RETURN_CONTINUE)
         return;
 
     // Revive
@@ -446,14 +446,14 @@ void PlayerbotShamanAI::DoNonCombatActions()
     // Heal
     if (m_ai.IsHealer())
     {
-        if (HealPlayer(GetHealTarget()) & RETURN_CONTINUE)
+        if (HealPlayerOrPet(GetHealTarget()) & RETURN_CONTINUE)
             return;// RETURN_CONTINUE;
     }
     else
     {
         // Is this desirable? Debatable.
         // TODO: In a group/raid with a healer you'd want this bot to focus on DPS (it's not specced/geared for healing either)
-        if (HealPlayer(&m_bot) & RETURN_CONTINUE)
+        if (HealPlayerOrPet(&m_bot) & RETURN_CONTINUE)
             return;// RETURN_CONTINUE;
     }
 

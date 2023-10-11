@@ -16,6 +16,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#include <stdlib.h>
 #include "Entities/Player.h"
 #include "Tools/Language.h"
 #include "Database/DatabaseEnv.h"
@@ -2221,6 +2222,13 @@ void Player::RegenerateAll(uint32 diff)
             Regenerate(POWER_RAGE, diff);
     }
 
+    // Can restore health even in combat.
+    else if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED)
+        && sWorld.getConfig(CONFIG_GAME_ENHANCE_RESTORE_HEALTH_RATE_IN_COMBAT) > 0.0f)
+    {
+        RegenerateHealth(diff);
+    }
+
     Regenerate(POWER_ENERGY, diff);
 
     Regenerate(POWER_MANA, diff);
@@ -2304,6 +2312,39 @@ void Player::RegenerateHealth(uint32 diff)
     float HealthIncreaseRate = sWorld.getConfig(CONFIG_FLOAT_RATE_HEALTH);
 
     float addvalue = 0.0f;
+
+    // Adjust health regenerating even in combat, such that spirit is much more useful.
+    if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED))
+    {
+        float baseValue = OCTRegenHPPerSpirit() * HealthIncreaseRate;
+
+        AuraList const& mModHealthRegenPct = GetAurasByType(SPELL_AURA_MOD_HEALTH_REGEN_PERCENT);
+        for (AuraList::const_iterator i = mModHealthRegenPct.begin(); i != mModHealthRegenPct.end(); ++i)
+        {
+            baseValue *= (100.0f + (*i)->GetModifier()->m_amount) / 100.0f;
+        }
+
+        if (IsInCombat())
+        {
+            // Partial restore when in combat.
+            addvalue += baseValue * sWorld.getConfig(CONFIG_GAME_ENHANCE_RESTORE_HEALTH_RATE_IN_COMBAT);
+
+            if (HasAuraType(SPELL_AURA_MOD_REGEN_DURING_COMBAT)) {
+                addvalue += baseValue * GetTotalAuraModifier(SPELL_AURA_MOD_REGEN_DURING_COMBAT) / 100.0f;
+            }
+        }
+        else
+        {
+            addvalue += baseValue;
+        }
+
+        if (!IsStandState())
+        {
+            float sitRestoreRate = sWorld.getConfig(CONFIG_GAME_ENHANCE_RESTORE_HEALTH_RATE_WHEN_SIT);
+            addvalue *= sitRestoreRate;
+        }
+    }
+    else
 
     // normal regen case (maybe partly in combat case)
     if (!IsInCombat() || HasAuraType(SPELL_AURA_MOD_REGEN_DURING_COMBAT))
@@ -4906,6 +4947,14 @@ float Player::GetMeleeCritFromAgility() const
         default:
             return 0.0f;
     }
+
+    // Reset player's melee critical chance from agility.
+    if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED)
+        && sWorld.getConfig(CONFIG_GAME_ENHANCE_CRIT_FROM_AGILITY_RATE) > 0.0f)
+    {
+        valLevel60 = sWorld.getConfig(CONFIG_GAME_ENHANCE_CRIT_FROM_AGILITY_RATE);
+    }
+
     float classrate = valLevel1 * float(60.0f - GetLevel()) / 59.0f + valLevel60 * float(GetLevel() - 1.0f) / 59.0f;
     return GetStat(STAT_AGILITY) / classrate;
 }
@@ -4950,6 +4999,14 @@ float Player::GetDodgeFromAgility(float amount) const
         default:
             return 0.0f;
     }
+
+    // Reset player's dodge chance from agility.
+    if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED)
+        && sWorld.getConfig(CONFIG_GAME_ENHANCE_DODGE_FROM_AGILITY_RATE) > 0.0f)
+    {
+        valLevel60 = sWorld.getConfig(CONFIG_GAME_ENHANCE_DODGE_FROM_AGILITY_RATE);
+    }
+
     float classrate = valLevel1 * float(60.0f - GetLevel()) / 59.0f + valLevel60 * float(GetLevel() - 1.0f) / 59.0f;
     return GetStat(STAT_AGILITY) / classrate;
 }
@@ -4986,7 +5043,19 @@ float Player::GetSpellCritFromIntellect() const
     const uint32 pclass = getClass();
     if (pclass >= MAX_CLASSES)
         return 0.0f;
-    const float crit_ratio = crit_data[pclass].rate0 + crit_data[pclass].rate1 * GetLevel();
+    float crit_ratio = crit_data[pclass].rate0 + crit_data[pclass].rate1 * GetLevel();
+
+    // Reset player's spell critical chance from intellect.
+    if(sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED)
+        && sWorld.getConfig(CONFIG_GAME_ENHANCE_SPELL_CRIT_FROM_INTELLECT_RATE) > 0.0f)
+    {
+        float rateAtLevel60 = sWorld.getConfig(CONFIG_GAME_ENHANCE_SPELL_CRIT_FROM_INTELLECT_RATE);
+        float rateAtLevel1 = rateAtLevel60 / 4.0f;
+
+        crit_ratio = rateAtLevel1 * float(60.0f - GetLevel()) / 59.0f
+            + rateAtLevel60 * float(GetLevel() - 1.0f) / 59.0f;
+    }
+
     return (crit_data[pclass].base + (GetStat(STAT_INTELLECT) / crit_ratio));
 }
 
@@ -6978,6 +7047,15 @@ void Player::_ApplyItemMods(Item* item, uint8 slot, bool apply)
     ApplyItemEquipSpell(item, apply);
     ApplyEnchantment(item, apply);
 
+    // Update pet stats.
+    if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED))
+    {
+        Pet* pet = GetPet();
+        if (pet != NULL) {
+            pet->UpdateAllStats();
+        }
+    }
+
     DEBUG_LOG("_ApplyItemMods complete.");
 }
 
@@ -7338,6 +7416,27 @@ void Player::CastItemCombatSpell(Unit* Target, WeaponAttackType attType, bool sp
         else if (chance > 100.0f)
         {
             chance = GetWeaponProcChance();
+        }
+
+        if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED))
+        {
+            float chanceToCalcFactor;
+
+            if (spellData.SpellPPMRate)
+            {
+                chanceToCalcFactor = chance;
+            }
+            else if (chance > 100.0f)
+            {
+                chanceToCalcFactor = 0.0f;
+            }
+
+            // rate = 2
+            // 0 -> * 2
+            // 5 -> * 1.4
+            // 100 -> * 1
+            float factor = std::pow(sWorld.getConfig(CONFIG_GAME_ENHANCE_SPELL_TRIGGER_CHANCE_RATE), 5.0f / (chanceToCalcFactor + 5.0f));
+            chance *= factor;
         }
 
         if (roll_chance_f(chance))
@@ -11482,22 +11581,23 @@ void Player::PrepareGossipMenu(WorldObject* pSource, uint32 menuId, bool forceQu
                     break;                                  // no checks
                 case GOSSIP_OPTION_BOT:
                 {
-#ifdef BUILD_PLAYERBOT
-                    if (botConfig.GetBoolDefault("PlayerbotAI.DisableBots", false) && !pCreature->isInnkeeper())
-                    {
-                        ChatHandler(this).PSendSysMessage("|cffff0000Playerbot system is currently disabled!");
-                        hasMenuItem = false;
-                        break;
-                    }
+// Not show recruiting bot menu.
+// #ifdef BUILD_PLAYERBOT
+//                     if (botConfig.GetBoolDefault("PlayerbotAI.DisableBots", false) && !pCreature->isInnkeeper())
+//                     {
+//                         ChatHandler(this).PSendSysMessage("|cffff0000Playerbot system is currently disabled!");
+//                         hasMenuItem = false;
+//                         break;
+//                     }
 
-                    int32 cost = botConfig.GetIntDefault("PlayerbotAI.BotguyCost", 0);
-                    if (cost >= 0)
-                    {
-                        std::string reqQuestIds = botConfig.GetStringDefault("PlayerbotAI.BotguyQuests", "");
-                        if ((reqQuestIds == "" || requiredQuests(reqQuestIds.c_str())) && !pCreature->isInnkeeper() && this->GetMoney() >= (uint32)cost)
-                            pCreature->LoadBotMenu(this);
-                    }
-#endif
+//                     int32 cost = botConfig.GetIntDefault("PlayerbotAI.BotguyCost", 0);
+//                     if (cost >= 0)
+//                     {
+//                         std::string reqQuestIds = botConfig.GetStringDefault("PlayerbotAI.BotguyQuests", "");
+//                         if ((reqQuestIds == "" || requiredQuests(reqQuestIds.c_str())) && !pCreature->isInnkeeper() && this->GetMoney() >= (uint32)cost)
+//                             pCreature->LoadBotMenu(this);
+//                     }
+// #endif
                     hasMenuItem = false;
                     break;
                 }
@@ -15196,6 +15296,116 @@ void Player::_LoadSpells(QueryResult* result)
 
     for (auto& data : spells)
         addSpell(std::get<0>(data), std::get<1>(data), false, false, std::get<2>(data));
+
+    // Share profession & riding spells across players of current account.
+    if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED)
+        || sWorld.getConfig(CONFIG_GAME_ENHANCE_ACCOUNT_SHARES_RIDING_SKILLS)
+        || sWorld.getConfig(CONFIG_GAME_ENHANCE_ACCOUNT_SHARES_PROFESSION_SKILLS))
+    {
+        int guid = GetGUIDLow();
+
+        QueryResult* sharedSpells = CharacterDatabase.PQuery(
+            "select spell, active, disabled"\
+            "    from character_spell"\
+            "    where guid in ("\
+            "        select guid from characters"\
+            "            where account in ("\
+            "                select account"\
+            "                    from characters"\
+            "                    where guid = '%u'"\
+            "            )"\
+            "    )"\
+            "    and spell not in ("\
+            "        select spell"\
+            "            from character_spell"\
+            "            where guid = '%u'"\
+            ")",
+            guid,
+            guid
+        );
+
+        if (sharedSpells)
+        {
+            do {
+                Field* fields = sharedSpells->Fetch();
+                uint32 spellId = fields[0].GetUInt32();
+
+                int32 skillId = sSpellSkillLineCategoryStore[spellId];
+                if (!skillId)
+                {
+                    continue;
+                }
+
+                SkillLineEntry const* skillInfo = sSkillLineStore.LookupEntry(skillId);
+                if (!skillInfo)
+                {
+                    continue;
+                }
+
+                bool willAdd = false;
+
+                if (skillInfo->categoryId == SKILL_CATEGORY_PROFESSION || skillInfo->categoryId == SKILL_CATEGORY_SECONDARY)
+                {
+                    if (skillInfo->id == SKILL_RIDING_HORSE
+                        || skillInfo->id == SKILL_RIDING_WOLF
+                        || skillInfo->id == SKILL_RIDING_TIGER
+                        || skillInfo->id == SKILL_RIDING_RAM
+                        || skillInfo->id == SKILL_RIDING_RAPTOR
+                        || skillInfo->id == SKILL_RIDING_MECHANOSTRIDER
+                        || skillInfo->id == SKILL_RIDING_UNDEAD_HORSE)
+                    {
+                        willAdd = sWorld.getConfig(CONFIG_GAME_ENHANCE_ACCOUNT_SHARES_RIDING_SKILLS);
+                    }
+
+                    // if (skillInfo->id == SKILL_ENGINEERING
+                    //     || skillInfo->id == SKILL_BLACKSMITHING
+                    //     || skillInfo->id == SKILL_LEATHERWORKING
+                    //     || skillInfo->id == SKILL_ALCHEMY
+                    //     || skillInfo->id == SKILL_HERBALISM
+                    //     || skillInfo->id == SKILL_MINING
+                    //     || skillInfo->id == SKILL_TAILORING
+                    //     || skillInfo->id == SKILL_ENCHANTING
+                    //     || skillInfo->id == SKILL_SKINNING
+                    //     || skillInfo->id == SKILL_FIRST_AID
+                    //     || skillInfo->id == SKILL_COOKING
+                    //     || skillInfo->id == SKILL_FISHING)
+                    // {
+                    //     willAdd = sWorld.getConfig(CONFIG_GAME_ENHANCE_ACCOUNT_SHARES_PROFESSION_SKILLS);
+                    // }
+                }
+
+                if (willAdd)
+                {
+                    addSpell(spellId, fields[1].GetBool(), false, false, fields[2].GetBool());
+                }
+            } while (sharedSpells->NextRow());
+
+            delete sharedSpells;
+        }
+
+        if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ACCOUNT_SHARES_FINDING_TREASURE)) {
+            QueryResult* hasDrawfSearch = CharacterDatabase.PQuery(
+                "select exists(select * from characters where account in ("\
+                "    select account"\
+                "        from characters"\
+                "        where guid = %u"\
+                "    )"\
+                " and race = 3)",
+                guid
+            );
+
+            if (hasDrawfSearch)
+            {
+                Field* fields = hasDrawfSearch->Fetch();
+                bool hasDrawf = fields[0].GetBool();
+
+                if (hasDrawf)
+                {
+                    addSpell(2481, true, false, false, false);
+                }
+            }
+        }
+    }
 }
 
 void Player::_LoadGroup(QueryResult* result)
@@ -19274,6 +19484,133 @@ void Player::_LoadSkills(QueryResult* result)
     // SetPQuery(PLAYER_LOGIN_QUERY_LOADSKILLS,          "SELECT skill, value, max FROM character_skills WHERE guid = '%u'", GUID_LOPART(m_guid));
 
     uint32 count = 0;
+    std::set<uint16> skillSet;
+
+    // Share profession & riding skills across characters in an account. 
+    if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED)
+        || sWorld.getConfig(CONFIG_GAME_ENHANCE_ACCOUNT_SHARES_RIDING_SKILLS)
+        || sWorld.getConfig(CONFIG_GAME_ENHANCE_ACCOUNT_SHARES_PROFESSION_SKILLS))
+    {
+        int guid = GetGUIDLow();
+
+        QueryResult* sharedSkills = CharacterDatabase.PQuery(
+            "select skill, max(value) as value, max(max) as max"\
+            "    from character_skills"\
+            "    where guid in ("\
+            "        select guid from characters"\
+            "            where account in ("\
+            "                select account"\
+            "                    from characters"\
+            "                    where guid=%u"\
+            "            )"\
+            "        )"\
+            "        and skill in ("\
+			"            select skill"\
+			"            from character_skills where guid=%u"\
+		    "         )"\
+            "    group by skill",
+            guid, guid
+        );
+
+        if (sharedSkills)
+        {
+            do {
+                Field* fields = sharedSkills->Fetch();
+
+                uint16 skill = fields[0].GetUInt16();
+                uint16 value = fields[1].GetUInt16();
+                uint16 max = fields[2].GetUInt16();
+
+                if (value == 0)
+                {
+                    continue;
+                }
+
+                SkillLineEntry const* skillInfo = sSkillLineStore.LookupEntry(skill);
+                if (!skillInfo)
+                {
+                    continue;
+                }
+
+                bool willAdd = false;
+
+                if (skillInfo->categoryId == SKILL_CATEGORY_PROFESSION || skillInfo->categoryId == SKILL_CATEGORY_SECONDARY)
+                {
+                    if (skillInfo->id == SKILL_RIDING_HORSE
+                        || skillInfo->id == SKILL_RIDING_WOLF
+                        || skillInfo->id == SKILL_RIDING_TIGER
+                        || skillInfo->id == SKILL_RIDING_RAM
+                        || skillInfo->id == SKILL_RIDING_RAPTOR
+                        || skillInfo->id == SKILL_RIDING_MECHANOSTRIDER
+                        || skillInfo->id == SKILL_RIDING_UNDEAD_HORSE)
+                    {
+                        willAdd = sWorld.getConfig(CONFIG_GAME_ENHANCE_ACCOUNT_SHARES_RIDING_SKILLS);
+                    }
+
+                    if (skillInfo->id == SKILL_ENGINEERING
+                        || skillInfo->id == SKILL_BLACKSMITHING
+                        || skillInfo->id == SKILL_LEATHERWORKING
+                        || skillInfo->id == SKILL_ALCHEMY
+                        || skillInfo->id == SKILL_HERBALISM
+                        || skillInfo->id == SKILL_MINING
+                        || skillInfo->id == SKILL_TAILORING
+                        || skillInfo->id == SKILL_ENCHANTING
+                        || skillInfo->id == SKILL_SKINNING
+                        || skillInfo->id == SKILL_FIRST_AID
+                        || skillInfo->id == SKILL_COOKING
+                        || skillInfo->id == SKILL_FISHING)
+                    {
+                        willAdd = sWorld.getConfig(CONFIG_GAME_ENHANCE_ACCOUNT_SHARES_PROFESSION_SKILLS);
+                    }
+                }
+
+                if (willAdd)
+                {
+                    skillSet.insert(skill);
+
+                    uint16 step = 0;
+                    uint32 raceMask = getRaceMask();
+                    uint32 classMask = getClassMask();
+                    auto bounds = sSpellMgr.GetSkillRaceClassInfoMapBounds(skill);
+
+                    for (auto itr = bounds.first; (itr != bounds.second && !step); ++itr)
+                    {
+                        SkillRaceClassInfoEntry const* entry = itr->second;
+
+                        if (!(entry->raceMask & raceMask))
+                            continue;
+
+                        if (!(entry->classMask & classMask))
+                            continue;
+
+                        if (entry->flags & SKILL_FLAG_MAXIMIZED)
+                            value = max = GetSkillMaxForLevel();
+
+                        if (SkillTiersEntry const* steps = sSkillTiersStore.LookupEntry(entry->skillTierId))
+                        {
+                            for (uint16 i = 0; (i < MAX_SKILL_STEP && !step && steps->maxSkillValue[i]); ++i)
+                            {
+                                if (steps->maxSkillValue[i] == max)
+                                    step = i + 1;
+                            }
+                        }
+                    }
+
+                    SetUInt32Value(PLAYER_SKILL_INDEX(count), MAKE_PAIR32(skill, step));
+                    SetUInt32Value(PLAYER_SKILL_VALUE_INDEX(count), MAKE_SKILL_VALUE(value, max));
+                    SetUInt32Value(PLAYER_SKILL_BONUS_INDEX(count), 0);
+
+                    mSkillStatus.insert(SkillStatusMap::value_type(skill, SkillStatusData(count, SKILL_UNCHANGED)));
+
+                    ++count;
+                }
+            }
+            while (sharedSkills->NextRow());
+
+            delete sharedSkills;
+        }
+    }
+
     if (result)
     {
         do
@@ -19283,6 +19620,12 @@ void Player::_LoadSkills(QueryResult* result)
             uint16 skill    = fields[0].GetUInt16();
             uint16 value    = fields[1].GetUInt16();
             uint16 max      = fields[2].GetUInt16();
+
+            // Skip the exist skill because already being shared.
+            if (skillSet.find(skill) != skillSet.end())
+            {
+                continue;
+            }
 
             SkillLineEntry const* pSkill = sSkillLineStore.LookupEntry(skill);
             if (!pSkill)

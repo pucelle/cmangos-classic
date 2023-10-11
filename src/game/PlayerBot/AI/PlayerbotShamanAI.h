@@ -126,11 +126,11 @@ class PlayerbotShamanAI : PlayerbotClassAI
         CombatManeuverReturns DoNextCombatManeuverPVP(Unit* pTarget) override;
 
         // Heals the target based off its hps
-        CombatManeuverReturns HealPlayer(Player* target) override;
+        CombatManeuverReturns HealPlayerOrPet(Unit* target) override;
         // Resurrects the target
         CombatManeuverReturns ResurrectPlayer(Player* target) override;
         // Dispel disease or negative magic effects from an internally selected target
-        CombatManeuverReturns DispelPlayer(Player* target = nullptr);
+        CombatManeuverReturns DispelPlayerOrPet(Unit* target = nullptr);
 
         void DropTotems();
         void CheckShields();

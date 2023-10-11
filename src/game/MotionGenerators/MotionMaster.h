@@ -139,6 +139,7 @@ class MotionMaster : private std::stack<MovementGenerator*>
         void MoveInFormation(FormationSlotDataSPtr& sData, bool asMain = false);
         void MoveStay(float x, float y, float z, float o = 0, bool asMain = false);
         void MoveChase(Unit* target, float dist = 0.0f, float angle = 0.0f, bool moveFurther = false, bool walk = false, bool combat = true, bool delayed = false);
+        void MoveFarAway(Unit* enemy);
         void DistanceYourself(float dist);
         void MoveConfused();
         void MoveFleeing(Unit* enemy, uint32 time = 0);

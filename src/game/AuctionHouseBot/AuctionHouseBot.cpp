@@ -241,8 +241,13 @@ void AuctionHouseBot::Update()
         for (AuctionHouseObject::AuctionEntryMap::const_iterator itr = bounds.first; itr != bounds.second; ++itr)
         {
             AuctionEntry* auction = itr->second;
-            if (auction->owner == 0 && auction->bid == 0)
-                continue; // ignore bidding/buying auctions that were created by ahbot and not bidded on by player
+            //if (auction->owner == 0 && auction->bid == 0)
+            //    continue; // ignore bidding/buying auctions that were created by ahbot and not bidded on by player
+
+            // Can only buy or bid from player's selling.
+            if (auction->owner == 0)
+                continue;
+
             Item* item = sAuctionMgr.GetAItem(auction->itemGuidLow);
             if (!item)
                 continue; // shouldn't happen, but apparently it does(?)

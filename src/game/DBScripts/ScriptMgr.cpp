@@ -1922,6 +1922,11 @@ bool ScriptAction::ExecuteDbscriptCommand(WorldObject* pSource, WorldObject* pTa
             else
                 pPlayer->FailQuest(m_script->questExplored.questId);
 
+#ifdef BUILD_PLAYERBOT
+            if (pPlayer->GetPlayerbotMgr())
+                pPlayer->GetPlayerbotMgr()->SetQuestExplored(m_script->questExplored.questId, !failQuest);
+#endif
+
             break;
         }
         case SCRIPT_COMMAND_KILL_CREDIT:                    // 8

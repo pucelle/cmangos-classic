@@ -305,6 +305,13 @@ class Pet : public Creature
         void ResetCorpseRespawn();
 
         void ForcedDespawn(uint32 timeMSToDespawn = 0, bool onlyAlive = false) override;
+
+        /** Update pet's critical percentage to make it gain from player property. */
+        void GainCriticalChance();
+
+        /** Update pet's dodge percentage to make it gain from player property. */
+        void GainDodgeChance();
+
     protected:
         uint32  m_happinessTimer;
         uint32  m_loyaltyTimer;

@@ -50,10 +50,10 @@ enum JOB_TYPE
 
 struct heal_priority
 {
-    Player* p;
+    Unit* p;
     uint8 hp;
     JOB_TYPE type;
-    heal_priority(Player* pin, uint8 hpin, JOB_TYPE t) : p(pin), hp(hpin), type(t) {}
+    heal_priority(Unit* pin, uint8 hpin, JOB_TYPE t) : p(pin), hp(hpin), type(t) {}
     // overriding the operator like this is not recommended for general use - however we won't use this struct for anything else
     bool operator<(const heal_priority& a) const { return type < a.type; }
 };
@@ -78,7 +78,7 @@ class PlayerbotClassAI
         // Utilities
         bool CastHoTOnTank();
         JOB_TYPE GetBotJob(Player* target);
-        JOB_TYPE GetTargetJob(Player* target);
+        JOB_TYPE GetTargetJob(Unit* target);
         time_t GetWaitUntil() { return m_WaitUntil; }
         void SetWait(uint8 t) { m_WaitUntil = m_ai.CurrentTime() + t; }
         void ClearWait() { m_WaitUntil = 0; }
@@ -92,14 +92,14 @@ class PlayerbotClassAI
 
         CombatManeuverReturns CastSpellNoRanged(uint32 nextAction, Unit* pTarget);
         CombatManeuverReturns CastSpellWand(uint32 nextAction, Unit* pTarget, uint32 SHOOT);
-        virtual CombatManeuverReturns HealPlayer(Player* target);
+        virtual CombatManeuverReturns HealPlayerOrPet(Unit* target);
         virtual CombatManeuverReturns ResurrectPlayer(Player* target);
-        virtual CombatManeuverReturns DispelPlayer(Player* target);
+        virtual CombatManeuverReturns DispelPlayerOrPet(Unit* target);
         CombatManeuverReturns Buff(bool (*BuffHelper)(PlayerbotAI*, uint32, Unit*), uint32 spellId, uint32 type = JOB_ALL, bool mustBeOOC = true);
         bool FindTargetAndHeal();
         bool NeedGroupBuff(uint32 groupBuffSpellId, uint32 singleBuffSpellId);
-        Player* GetHealTarget(JOB_TYPE type = JOB_ALL, bool onlyPickFromSameGroup = false);
-        Player* GetDispelTarget(DispelType dispelType, JOB_TYPE type = JOB_ALL, bool bMustBeOOC = false);
+        Unit* GetHealTarget(JOB_TYPE type = JOB_ALL, bool onlyPickFromSameGroup = false);
+        Unit* GetDispelTarget(DispelType dispelType, JOB_TYPE type = JOB_ALL, bool bMustBeOOC = false);
         Player* GetResurrectionTarget(JOB_TYPE type = JOB_ALL, bool bMustBeOOC = true);
 
         bool FleeFromAoEIfCan(uint32 spellId, Unit* pTarget);

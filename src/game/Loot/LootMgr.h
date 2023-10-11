@@ -177,6 +177,9 @@ struct LootStoreItem
           group(_group), needs_quest(_chanceOrQuestChance < 0), maxcount(_maxcount), conditionId(_conditionId)
     {}
 
+    // Guess the normal quality of the loot template.
+    ItemQualities guessLootQuality() const;
+
     bool Roll(bool rate) const;                             // Checks if the entry takes it's chance (at loot generation)
     bool IsValid(LootStore const& store, uint32 entry) const;
     // Checks correctness of values
@@ -259,6 +262,9 @@ class LootTemplate
         typedef std::vector<LootGroup> LootGroups;
 
     public:
+        // Guess the normal quality of the loot template.
+        ItemQualities LootTemplate::guessLootQuality() const;
+
         // Adds an entry to the group (at loading stage)
         void AddEntry(LootStoreItem& item);
         // Rolls for every item in the template and adds the rolled items the the loot

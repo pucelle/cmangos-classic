@@ -1694,6 +1694,20 @@ void Aura::HandleAuraDummy(bool apply, bool Real)
     // script has to "handle with care", only use where data are not ok to use in the above code.
     if (target->GetTypeId() == TYPEID_UNIT)
         sScriptDevAIMgr.OnAuraDummy(this, apply);
+
+    // Update player's pet stats.
+    if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED))
+    {
+        Unit* caster = GetCaster();
+        if (caster && caster->IsPlayer())
+        {
+            Pet* pet = ((Player*)caster)->GetPet();
+            if (pet != NULL)
+            {
+                pet->UpdateAllStats();
+            }
+        }
+    }
 }
 
 void Aura::HandleAuraMounted(bool apply, bool Real)
@@ -3300,6 +3314,18 @@ void Aura::HandlePeriodicDamage(bool apply, bool Real)
             {
                 WeaponAttackType attackType = GetWeaponAttackType(GetSpellProto());
                 m_modifier.m_amount = caster->MeleeDamageBonusDone(target, m_modifier.m_amount, attackType, GetSpellSchoolMask(spellProto), spellProto, DOT, GetStackAmount());
+            }
+
+            // Player's DOT is affected by critical damage rate.
+            if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED)
+                && sWorld.getConfig(CONFIG_GAME_ENHANCE_DOT_GAIN_FROM_CRITICAL)
+                && caster->IsControlledByPlayer())
+            {
+                SpellSchools damageSchool = SpellSchools(spellProto->School);
+                SpellSchoolMask damageSchoolMask = SpellSchoolMask(1 << damageSchool);
+                WeaponAttackType attackType = GetWeaponAttackType(GetSpellProto());
+                float critChance = ((Player*)caster)->CalculateSpellCritChance(target, damageSchoolMask, spellProto);
+                m_modifier.m_amount = int32(m_modifier.m_amount * ((100.0f + critChance) / 100.0f));
             }
         }
     }

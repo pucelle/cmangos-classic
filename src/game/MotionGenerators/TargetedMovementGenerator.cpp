@@ -1484,3 +1484,184 @@ template bool TargetedMovementGeneratorMedium<Unit, ChaseMovementGenerator>::IsR
 template bool TargetedMovementGeneratorMedium<Unit, FollowMovementGenerator>::IsReachable() const;
 template bool TargetedMovementGeneratorMedium<Unit, ChaseMovementGenerator>::RequiresNewPosition(Unit& owner, Position pos) const;
 template bool TargetedMovementGeneratorMedium<Unit, FollowMovementGenerator>::RequiresNewPosition(Unit& owner, Position pos) const;
+
+
+// Move closer to target.
+void CloserMovementGenerator::Initialize(Unit& owner)
+{
+    // Stop any previously dispatched splines no matter the source
+    if (!owner.movespline->Finalized())
+    {
+        if (owner.IsClientControlled())
+            owner.StopMoving(true);
+        else
+            owner.InterruptMoving();
+    }
+}
+
+void CloserMovementGenerator::Finalize(Unit& owner)
+{
+    // Stop any previously dispatched splines no matter the source
+    if (!owner.movespline->Finalized())
+    {
+        if (owner.IsClientControlled())
+            owner.StopMoving(true);
+        else
+            owner.InterruptMoving();
+    }
+}
+
+void CloserMovementGenerator::Interrupt(Unit& owner)
+{
+    owner.InterruptMoving();
+}
+
+void CloserMovementGenerator::Reset(Unit& owner)
+{
+    Initialize(owner);
+}
+
+bool CloserMovementGenerator::Update(Unit& owner, const uint32& diff)
+{
+    if (!owner.IsAlive())
+        return false;
+
+    if (owner.movespline->Finalized())
+    {
+        _setLocation(owner);
+    }
+
+    return true;
+}
+
+bool CloserMovementGenerator::_getLocation(Unit& owner, float& x, float& y, float& z)
+{
+    if (!m_target)
+        return false;
+
+    float runDistance = 10.0f;
+    float angle = owner.GetAngle(m_target);
+
+    Position pos = owner.GetFirstRandomAngleCollisionPosition(runDistance, angle);
+    x = pos.x;
+    y = pos.y;
+    z = pos.z + 1;
+    return true;
+}
+
+int32 CloserMovementGenerator::_setLocation(Unit& owner)
+{
+    // Look for a random location within certain radius of initial position
+    float x = i_x, y = i_y, z = i_z;
+
+    if (!_getLocation(owner, x, y, z))
+        return 0;
+
+    PathFinder pf(&owner);
+
+    if (i_pathLength != 0.0f)
+        pf.setPathLengthLimit(i_pathLength);
+
+    pf.calculate(x, y, z);
+
+    if (pf.getPathType() & PATHFIND_NOPATH)
+        return 0;
+
+    Movement::MoveSplineInit init(owner);
+    init.MovebyPath(pf.getPath());
+    init.SetWalk(false);
+
+    int32 duration = init.Launch();
+    return duration;
+}
+
+
+// Move far away from target.
+void FarAwayMovementGenerator::Initialize(Unit& owner)
+{
+    // Stop any previously dispatched splines no matter the source
+    if (!owner.movespline->Finalized())
+    {
+        if (owner.IsClientControlled())
+            owner.StopMoving(true);
+        else
+            owner.InterruptMoving();
+    }
+}
+
+void FarAwayMovementGenerator::Finalize(Unit& owner)
+{
+    // Stop any previously dispatched splines no matter the source
+    if (!owner.movespline->Finalized())
+    {
+        if (owner.IsClientControlled())
+            owner.StopMoving(true);
+        else
+            owner.InterruptMoving();
+    }
+}
+
+void FarAwayMovementGenerator::Interrupt(Unit& owner)
+{
+    owner.InterruptMoving();
+}
+
+void FarAwayMovementGenerator::Reset(Unit& owner)
+{
+    Initialize(owner);
+}
+
+bool FarAwayMovementGenerator::Update(Unit& owner, const uint32& diff)
+{
+    if (!owner.IsAlive())
+        return false;
+
+    if (owner.movespline->Finalized())
+    {
+        _setLocation(owner);
+    }
+
+    return true;
+}
+
+bool FarAwayMovementGenerator::_getLocation(Unit& owner, float& x, float& y, float& z)
+{
+    if (!m_target)
+        return false;
+
+    float runDistance = 10.0f;
+    float distFromTarget = owner.GetDistance(m_target);
+    float angle = m_target->GetAngle(&owner);
+
+    Position pos = owner.GetFirstRandomAngleCollisionPosition(runDistance, angle);
+    x = pos.x;
+    y = pos.y;
+    z = pos.z + 1;
+    return true;
+}
+
+int32 FarAwayMovementGenerator::_setLocation(Unit& owner)
+{
+    // Look for a random location within certain radius of initial position
+    float x = i_x, y = i_y, z = i_z;
+
+    if (!_getLocation(owner, x, y, z))
+        return 0;
+
+    PathFinder pf(&owner);
+
+    if (i_pathLength != 0.0f)
+        pf.setPathLengthLimit(i_pathLength);
+
+    pf.calculate(x, y, z);
+
+    if (pf.getPathType() & PATHFIND_NOPATH)
+        return 0;
+
+    Movement::MoveSplineInit init(owner);
+    init.MovebyPath(pf.getPath());
+    init.SetWalk(false);
+
+    int32 duration = init.Launch();
+    return duration;
+}

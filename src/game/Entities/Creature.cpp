@@ -1262,6 +1262,40 @@ void Creature::SelectLevel(uint32 forcedLevel /*= USE_DEFAULT_DATABASE_LEVEL*/)
     float damageMulti = cinfo->DamageMultiplier * damageMod;
     bool usedDamageMulti = false;
 
+    // Modify damage depend on dungeon player count.
+    if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED))
+    {
+        Map* map = GetMap();
+        float rate = 1.0f;
+
+        if (map->IsDungeon())
+        {
+            DungeonMap* dungeon = (DungeonMap*)map;
+            if (dungeon->GetMaxPlayers() == 5)
+            {
+                rate = sWorld.getConfig(CONFIG_GAME_ENHANCE_DUNGEON_5MAN_CREATURE_DAMAGE_RATE);
+            }
+            else if (dungeon->GetMaxPlayers() == 10)
+            {
+                rate = sWorld.getConfig(CONFIG_GAME_ENHANCE_DUNGEON_10MAN_CREATURE_DAMAGE_RATE);
+            }
+            else if (dungeon->GetMaxPlayers() == 15)
+            {
+                rate = sWorld.getConfig(CONFIG_GAME_ENHANCE_DUNGEON_15MAN_CREATURE_DAMAGE_RATE);
+            }
+            else if (dungeon->GetMaxPlayers() == 20)
+            {
+                rate = sWorld.getConfig(CONFIG_GAME_ENHANCE_DUNGEON_20MAN_CREATURE_DAMAGE_RATE);
+            }
+            else if (dungeon->GetMaxPlayers() == 40)
+            {
+                rate = sWorld.getConfig(CONFIG_GAME_ENHANCE_DUNGEON_40MAN_CREATURE_DAMAGE_RATE);
+            }
+        }
+
+        damageMulti *= rate;
+    }
+
     if (CreatureClassLvlStats const* cCLS = sObjectMgr.GetCreatureClassLvlStats(level, cinfo->UnitClass))
     {
         // Use Creature Stats to calculate stat values
@@ -1342,6 +1376,41 @@ void Creature::SelectLevel(uint32 forcedLevel /*= USE_DEFAULT_DATABASE_LEVEL*/)
     }
 
     health *= _GetHealthMod(rank); // Apply custom config setting
+    
+    // Modify health depend on dungeon player count.
+    if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED))
+    {
+        Map* map = GetMap();
+        float rate = 1.0f;
+
+        if (map->IsDungeon())
+        {
+            DungeonMap* dungeon = (DungeonMap*)map;
+            if (dungeon->GetMaxPlayers() == 5)
+            {
+                rate = sWorld.getConfig(CONFIG_GAME_ENHANCE_DUNGEON_5MAN_CREATURE_HEALTH_RATE);
+            }
+            else if (dungeon->GetMaxPlayers() == 10)
+            {
+                rate = sWorld.getConfig(CONFIG_GAME_ENHANCE_DUNGEON_10MAN_CREATURE_HEALTH_RATE);
+            }
+            else if (dungeon->GetMaxPlayers() == 15)
+            {
+                rate = sWorld.getConfig(CONFIG_GAME_ENHANCE_DUNGEON_15MAN_CREATURE_HEALTH_RATE);
+            }
+            else if (dungeon->GetMaxPlayers() == 20)
+            {
+                rate = sWorld.getConfig(CONFIG_GAME_ENHANCE_DUNGEON_20MAN_CREATURE_HEALTH_RATE);
+            }
+            else if (dungeon->GetMaxPlayers() == 40)
+            {
+                rate = sWorld.getConfig(CONFIG_GAME_ENHANCE_DUNGEON_40MAN_CREATURE_HEALTH_RATE);
+            }
+        }
+
+        health *= rate;
+    }
+   
     if (health < 1)
         health = 1;
 
@@ -1586,6 +1655,14 @@ bool Creature::LoadFromDB(uint32 dbGuid, Map* map, uint32 newGuid, uint32 forced
     m_respawnradius = data->spawndist;
 
     m_respawnDelay = data->GetRandomRespawnTime();
+
+    // Reduce rare monster's respawn time.
+    if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED)
+        && GetCreatureInfo()->Rank & (CREATURE_ELITE_RARE | CREATURE_ELITE_RAREELITE))
+    {
+        m_respawnDelay *= sWorld.getConfig(CONFIG_GAME_ENHANCE_RARE_RESPAWN_TIME_RATE);
+    }
+
     if (!IsUsingNewSpawningSystem())
         m_corpseDelay = std::min(m_respawnDelay * 9 / 10, m_corpseDelay); // set corpse delay to 90% of the respawn delay
     m_deathState = ALIVE;
@@ -1761,7 +1838,16 @@ void Creature::SetDeathState(DeathState s)
         if (!m_respawnOverriden)
         {
             if (CreatureData const* data = sObjectMgr.GetCreatureData(GetDbGuid()))
+            {
                 m_respawnDelay = data->GetRandomRespawnTime();
+
+                // Reduce rare monster's respawn time.
+                if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED)
+                    && GetCreatureInfo()->Rank & (CREATURE_ELITE_RARE | CREATURE_ELITE_RAREELITE))
+                {
+                    m_respawnDelay *= sWorld.getConfig(CONFIG_GAME_ENHANCE_RARE_RESPAWN_TIME_RATE);
+                }
+            }
         }
         else if (m_respawnOverrideOnce)
             m_respawnOverriden = false;

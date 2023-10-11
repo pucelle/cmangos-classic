@@ -1752,3 +1752,209 @@ Metric.Password = ""
 
 Dummy.Debug1 = 0
 Dummy.Debug2 = 0
+
+
+
+###################################################################################################################
+#  GAME ENHANCEMENT SETTINGS
+###################################################################################################################
+
+# Whether enabled player enhancement.
+# Default value is false.
+GameEnhance.Enabled = false
+
+# Whether keeps the pet's damage school after tamered.
+# Default value is false.
+GameEnhance.HunterPetKeepsDamageSchool = false
+
+# Whether keeps the pet's armor multiplier rate after tamered.
+# Default value is false.
+GameEnhance.HunterPetKeepsArmor = false
+
+# Whether keeps the pet's size after tamered.
+# Default value is false.
+GameEnhance.HunterPetKeepsSize = false
+
+# Whether keeps the pet's run speed after tamered.
+# Default value is false.
+GameEnhance.HunterPetKeepsSpeed = false
+
+# Whether keeps the pet's spell resistance after tamered.
+# Default value is false.
+GameEnhance.HunterPetKeepsResistance = false
+
+# If the pet is rare or elite-rare, gain more base stats.
+# Default value is 0, betweens 0~0.5.
+GameEnhance.HunterPetRareGain = 0
+
+# The rate that warlock pets gain from it's owner's spell power.
+# Default value is 0.15, betweens 0~1.
+GameEnhance.WarlockPetDamageBonusRate = 0.15
+
+# The rate that mage pets gain from it's owner's spell power.
+# Default value is 0.4, betweens 0~1.
+GameEnhance.MagePetDamageBonusRate = 0.4
+
+# The rate that hunter / warlock / mage pets gain from it's owner's stat,
+# Default value is 0, betweens 0~1.
+GameEnhance.PetGainStatRate = 0
+
+# The rate that pets gain from it's owner's attact power,
+# Default value is 0, betweens 0~1.
+GameEnhance.PetGainAttactPowerRate = 0
+
+# The rate that pets gain from it's owner's critical chance,
+# Default value is 0, betweens 0~1.
+GameEnhance.PetGainCriticalRate = 0
+
+# The rate that restore health when sitting compare with standing.
+# Default value is 1.5, betweens 1~5.
+GameEnhance.RestoreHealthRateWhenSit = 1.5
+
+# How many health points to regenerate from each spirit, in 1 second.
+# Default value is 0, means not reset it. betweens 0~10.
+GameEnhance.HPRegenRerSpirit = 0
+
+# How many mana points to regenerate from each spirit, in 1 second.
+# Default value is 0, means not reset it. betweens 0~10.
+GameEnhance.MPRegenRerSpirit = 0
+
+# The rate that can still restore health in combat compare with not in combat.
+# Default value is 0, betweens 0~1.
+GameEnhance.RestoreHealthRateInCombat = 0
+
+# Will always regenerate mana even when in combat.
+# Default value is 0, betweens 0~1.
+GameEnhance.MinimumManaRegenRate = 0
+
+# How many agility points cause one melee critical rate.
+# Default value is 0, means not reset it. betweens 0~100.
+GameEnhance.CritFromAgilityRate = 0
+
+# How many agility points cause one dodge rate.
+# Default value is 0, means not reset it. betweens 0~100.
+GameEnhance.DodgeFromAgilityRate = 0
+
+# How many intellect points cause one spell critical rate.
+# Default value is 0, means not reset it. betweens 0~100.
+GameEnhance.SpellCritFromIntellectRate = 0
+
+# Specifies the default base melee hit chance.
+# Default value is 0, means not reset it. betweens 0~100.
+GameEnhance.BaseMeleeHitChance = 0
+
+# Specifies the default base melee dodge chance.
+# Didn't work for warrior because of the existance of "Overpower".
+# Default value is 5. betweens 0~100.
+GameEnhance.BaseMeleeDodgeChance = 5
+
+# Specifies the default base melee parry chance.
+# Default value is 5. betweens 0~100.
+GameEnhance.BaseMeleeParryChance = 5
+
+# Specifies the default base melee block chance.
+# Default value is 5. betweens 0~100.
+GameEnhance.BaseMeleeBlockChance = 5
+
+# Specifies the default base spell hit chance.
+# Default value is 0, means not reset it. betweens 0~100.
+GameEnhance.BaseSpellHitChance = 0
+
+# Specifies the hit change reduce from per level difference, when level difference < 3.
+# Default value is 1. betweens 0~5.
+GameEnhance.LowHitChanceReducePerLevel = 1
+
+# Specifies the hit change reduce from per level difference, when level difference >= 3.
+# Default value is 7. betweens 0~10.
+GameEnhance.HighHitChanceReducePerLevel = 7
+
+# Specifies the hit change reduce for off-hand equipment.
+# Default value is 19. betweens 0~20.
+GameEnhance.OffHandHitChanceReduce = 19
+
+# Specifies the base off-hand damage rate compare with main-hand.
+# Default value is 0.5. betweens 0.5~1.
+GameEnhance.OffHandDamageRate = 0.5
+
+# Specifies the rate of spell trigger chance multiplier when hit.
+# Default value is 1. betweens 1~5.
+GameEnhance.SpellTriggerChanceRate = 1
+
+# Specifies the default spell critical damage bonus rate, compare with normal damage.
+# Default value is 0.5. betweens 0~1.
+GameEnhance.SpellCritialBonusRate = 0.5
+
+# Whether dot gain damage from critical rate, for both melee and spell dots.
+# Default value is false.
+GameEnhance.DotGainFromCritial = false
+# Whether all characters in an account share rading skills.
+# Default value is false.
+GameEnhance.AccountSharesRidingSkills = false
+
+# Whether all characters in an account shares profession skills.
+# Default value is false.
+GameEnhance.AccountSharesProfessionSkills = false
+
+# Specifies whether shares a dwarf's finding treasure skill across an account.
+# Default value is false.
+GameEnhance.AccountSharesFindingTreasure = false
+
+# If specifices as true, low rate drops in drop group will also be improved by `Rate.Drop.Item.XXX`.
+# Default value is false.
+GameEnhance.BalanceDropGroup = false
+
+# Specifies rare monster's respawn time rate.
+# Default value is 1.
+GameEnhance.RareRespawnTimeRate = 1
+
+# Specifies the days before email expired.
+# Default value is 30.
+GameEnhance.MailUntilExpiredDays = 30
+
+# How many emails one player can accept.
+# Default value is 100, maximum value is 255.
+GameEnhance.MailMaxCount = 100
+
+# Whether can send mail to myself.
+# Default value is `false`.
+GameEnhance.MailCanSendToSelf = false
+
+# 5 Man dungen creature's health rate.
+# Default value is `1`.
+GameEnhance.Dungen5ManCreatureHealthRate = 1
+
+# 5 Man dungen creature's damage rate.
+# Default value is `1`.
+GameEnhance.Dungen5ManCreatureDamageRate = 1
+
+# 10 Man dungen creature's health rate.
+# Default value is `1`.
+GameEnhance.Dungen10ManCreatureHealthRate = 1
+
+# 10 Man dungen creature's damage rate.
+# Default value is `1`.
+GameEnhance.Dungen10ManCreatureDamageRate = 1
+
+# 15 Man dungen creature's health rate.
+# Default value is `1`.
+GameEnhance.Dungen15ManCreatureHealthRate = 1
+
+# 15 Man dungen creature's damage rate.
+# Default value is `1`.
+GameEnhance.Dungen15ManCreatureDamageRate = 1
+
+# 20 Man dungen creature's health rate.
+# Default value is `1`.
+GameEnhance.Dungen20ManCreatureHealthRate = 1
+
+# 20 Man dungen creature's damage rate.
+# Default value is `1`.
+GameEnhance.Dungen20ManCreatureDamageRate = 1
+
+# 40 Man dungen creature's health rate.
+# Default value is `1`.
+GameEnhance.Dungen40ManCreatureHealthRate = 1
+
+# 40 Man dungen creature's damage rate.
+# Default value is `1`.
+GameEnhance.Dungen40ManCreatureDamageRate = 1

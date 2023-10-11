@@ -303,6 +303,14 @@ void WorldSession::HandleNpcTextQueryOpcode(WorldPacket& recv_data)
     WorldPacket data(SMSG_NPC_TEXT_UPDATE, 100);            // guess size
     data << textID;
 
+    // Makesure default Greeting text get translated.
+    // Must after pushed `textID` to `data`.
+    if (!gossip)
+    {
+        textID = 1;
+        gossip = sObjectMgr.GetGossipText(textID);
+    }
+
     if (!gossip)
     {
         for (uint32 i = 0; i < MAX_GOSSIP_TEXT_OPTIONS; ++i)

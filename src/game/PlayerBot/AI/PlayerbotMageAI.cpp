@@ -169,7 +169,7 @@ CombatManeuverReturns PlayerbotMageAI::DoNextCombatManeuverPVE(Unit* pTarget)
     Unit* newTarget = m_ai.FindAttacker((PlayerbotAI::ATTACKERINFOTYPE)(PlayerbotAI::AIT_VICTIMSELF | PlayerbotAI::AIT_HIGHESTTHREAT), &m_bot);
 
     // Remove curse on group members
-    if (m_ai.HasDispelOrder() && DispelPlayer(GetDispelTarget(DISPEL_CURSE)) & RETURN_CONTINUE)
+    if (m_ai.HasDispelOrder() && DispelPlayerOrPet(GetDispelTarget(DISPEL_CURSE)) & RETURN_CONTINUE)
         return RETURN_CONTINUE;
 
     if (newTarget && !PlayerbotAI::IsNeutralized(newTarget)) // Bot has aggro and the mob is not already crowd controled
@@ -387,9 +387,9 @@ Item* PlayerbotMageAI::FindManaGem() const
     return nullptr;
 }
 
-CombatManeuverReturns PlayerbotMageAI::DispelPlayer(Player* cursedTarget)
+CombatManeuverReturns PlayerbotMageAI::DispelPlayerOrPet(Unit* cursedTarget)
 {
-    CombatManeuverReturns r = PlayerbotClassAI::DispelPlayer(cursedTarget);
+    CombatManeuverReturns r = PlayerbotClassAI::DispelPlayerOrPet(cursedTarget);
     if (r != RETURN_NO_ACTION_OK)
         return r;
 
@@ -402,7 +402,7 @@ CombatManeuverReturns PlayerbotMageAI::DispelPlayer(Player* cursedTarget)
 void PlayerbotMageAI::DoNonCombatActions()
 {
     // Remove curse on group members
-    if (m_ai.HasDispelOrder() && DispelPlayer(GetDispelTarget(DISPEL_CURSE)) & RETURN_CONTINUE)
+    if (m_ai.HasDispelOrder() && DispelPlayerOrPet(GetDispelTarget(DISPEL_CURSE)) & RETURN_CONTINUE)
         return;
 
     // Buff armor

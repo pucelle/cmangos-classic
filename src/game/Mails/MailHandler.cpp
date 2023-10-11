@@ -38,6 +38,7 @@
 #include "Server/Opcodes.h"
 #include "Chat/Chat.h"
 #include "Anticheat/Anticheat.hpp"
+#include "Config/Config.h"
 
 #define MAX_INBOX_CLIENT_UI_CAPACITY 50
 
@@ -118,7 +119,11 @@ void WorldSession::HandleSendMail(WorldPacket& recv_data)
     DETAIL_LOG("%s is sending mail to %s with subject %s and body %s includes %u items, %u copper and %u COD copper with unk1 = %u, unk2 = %u",
                pl->GetGuidStr().c_str(), rc.GetString().c_str(), subject.c_str(), body.c_str(), itemGuid ? 1 : 0, money, COD, unk1, unk2);
 
-    if (pl->GetObjectGuid() == rc)
+    if (pl->GetObjectGuid() == rc
+        && !(sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED)
+            && sWorld.getConfig(CONFIG_GAME_ENHANCE_MAIL_CAN_SEND_TO_SELF)
+        )
+    )
     {
         pl->SendMailResult(0, MAIL_SEND, MAIL_ERR_CANNOT_SEND_TO_SELF);
         return;
@@ -160,8 +165,10 @@ void WorldSession::HandleSendMail(WorldPacket& recv_data)
         }
     }
 
+    uint8 maxMailCount = sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED) ? sWorld.getConfig(CONFIG_GAME_ENHANCE_MAIL_MAX_COUNT) : 100;
+
     // do not allow to have more than 100 mails in mailbox.. mails count is in opcode uint8!!! - so max can be 255..
-    if (mails_count > 100)
+    if (mails_count > maxMailCount)
     {
         pl->SendMailResult(0, MAIL_SEND, MAIL_ERR_RECIPIENT_CAP_REACHED);
         return;

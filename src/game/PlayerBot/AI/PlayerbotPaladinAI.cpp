@@ -107,7 +107,7 @@ CombatManeuverReturns PlayerbotPaladinAI::DoFirstCombatManeuver(Unit* pTarget)
                 }
             }
             else if (PlayerbotAI::ORDERS_HEAL & m_ai.GetCombatOrder())
-                return HealPlayer(GetHealTarget());
+                return HealPlayerOrPet(GetHealTarget());
             else
                 return RETURN_NO_ACTION_OK; // wait it out
         }
@@ -183,9 +183,9 @@ CombatManeuverReturns PlayerbotPaladinAI::DoNextCombatManeuverPVE(Unit* pTarget)
     std::ostringstream out;
 
     // Make sure healer stays put, don't even melee (aggro) if in range.
-    if (m_ai.IsHealer() && m_ai.GetCombatStyle() != PlayerbotAI::COMBAT_RANGED)
+    if (m_ai.IsOnlyHealer() && m_ai.GetCombatStyle() != PlayerbotAI::COMBAT_RANGED)
         m_ai.SetCombatStyle(PlayerbotAI::COMBAT_RANGED);
-    else if (!m_ai.IsHealer() && m_ai.GetCombatStyle() != PlayerbotAI::COMBAT_MELEE)
+    else if (m_ai.GetCombatStyle() != PlayerbotAI::COMBAT_MELEE)
         m_ai.SetCombatStyle(PlayerbotAI::COMBAT_MELEE);
 
     // Emergency check: bot is about to die: use Divine Shield (first)
@@ -201,14 +201,14 @@ CombatManeuverReturns PlayerbotPaladinAI::DoNextCombatManeuverPVE(Unit* pTarget)
     }
 
     // Dispel magic/disease/poison
-    if (m_ai.HasDispelOrder() && DispelPlayer() & RETURN_CONTINUE)
+    if (m_ai.HasDispelOrder() && DispelPlayerOrPet() & RETURN_CONTINUE)
         return RETURN_CONTINUE;
 
     // Check if bot needs to cast a seal on self or judge the target
     if (CheckSealAndJudgement(pTarget))
         return RETURN_CONTINUE;
 
-    // Heal (try to pick a target by on common rules, than heal using each PlayerbotClassAI HealPlayer() method)
+    // Heal (try to pick a target by on common rules, than heal using each PlayerbotClassAI HealPlayerOrPet() method)
     if (FindTargetAndHeal())
         return RETURN_CONTINUE;
 
@@ -242,7 +242,7 @@ CombatManeuverReturns PlayerbotPaladinAI::DoNextCombatManeuverPVE(Unit* pTarget)
     switch (spec)
     {
         case PALADIN_SPEC_HOLY:
-            if (m_ai.IsHealer())
+            if (m_ai.IsOnlyHealer())
                 return RETURN_NO_ACTION_OK;
         // else: DPS (retribution, NEVER protection)
 
@@ -273,9 +273,9 @@ CombatManeuverReturns PlayerbotPaladinAI::DoNextCombatManeuverPVP(Unit* pTarget)
     return DoNextCombatManeuverPVE(pTarget); // TODO: bad idea perhaps, but better than the alternative
 }
 
-CombatManeuverReturns PlayerbotPaladinAI::HealPlayer(Player* target)
+CombatManeuverReturns PlayerbotPaladinAI::HealPlayerOrPet(Unit* target)
 {
-    CombatManeuverReturns r = PlayerbotClassAI::HealPlayer(target);
+    CombatManeuverReturns r = PlayerbotClassAI::HealPlayerOrPet(target);
     if (r != RETURN_NO_ACTION_OK)
         return r;
 
@@ -347,24 +347,24 @@ CombatManeuverReturns PlayerbotPaladinAI::ResurrectPlayer(Player* target)
     return RETURN_NO_ACTION_ERROR; // not error per se - possibly just OOM
 }
 
-CombatManeuverReturns PlayerbotPaladinAI::DispelPlayer(Player* /*target*/)
+CombatManeuverReturns PlayerbotPaladinAI::DispelPlayerOrPet(Unit* /*target*/)
 {
     uint32 dispel = CLEANSE > 0 ? CLEANSE : PURIFY;
     // Remove negative magic on group members
-    if (Player* cursedTarget = GetDispelTarget(DISPEL_MAGIC))
+    if (Unit* cursedTarget = GetDispelTarget(DISPEL_MAGIC))
     {
-        CombatManeuverReturns r = PlayerbotClassAI::DispelPlayer(cursedTarget);
+        CombatManeuverReturns r = PlayerbotClassAI::DispelPlayerOrPet(cursedTarget);
         if (r != RETURN_NO_ACTION_OK)
             return r;
 
-        if (dispel > 0 && m_ai.CastSpell(dispel, *cursedTarget) == SPELL_CAST_OK)
+        if (CLEANSE > 0 && m_ai.CastSpell(CLEANSE, *cursedTarget) == SPELL_CAST_OK)
             return RETURN_CONTINUE;
     }
 
     // Remove poison on group members
-    if (Player* poisonedTarget = GetDispelTarget(DISPEL_POISON))
+    if (Unit* poisonedTarget = GetDispelTarget(DISPEL_POISON))
     {
-        CombatManeuverReturns r = PlayerbotClassAI::DispelPlayer(poisonedTarget);
+        CombatManeuverReturns r = PlayerbotClassAI::DispelPlayerOrPet(poisonedTarget);
         if (r != RETURN_NO_ACTION_OK)
             return r;
 
@@ -373,9 +373,9 @@ CombatManeuverReturns PlayerbotPaladinAI::DispelPlayer(Player* /*target*/)
     }
 
     // Remove disease on group members
-    if (Player* diseasedTarget = GetDispelTarget(DISPEL_DISEASE))
+    if (Unit* diseasedTarget = GetDispelTarget(DISPEL_DISEASE))
     {
-        CombatManeuverReturns r = PlayerbotClassAI::DispelPlayer(diseasedTarget);
+        CombatManeuverReturns r = PlayerbotClassAI::DispelPlayerOrPet(diseasedTarget);
         if (r != RETURN_NO_ACTION_OK)
             return r;
 
@@ -527,9 +527,9 @@ bool PlayerbotPaladinAI::CheckSealAndJudgement(Unit* target)
     uint32 spec = m_bot.GetSpec();
 
     // Bypass spec if combat orders were given
-    if (m_ai.IsHealer()) spec = PALADIN_SPEC_HOLY;
+    if (m_ai.IsOnlyHealer()) spec = PALADIN_SPEC_HOLY;
     if (m_ai.IsTank()) spec = PALADIN_SPEC_PROTECTION;
-    if (m_ai.GetCombatOrder() & PlayerbotAI::ORDERS_ASSIST) spec = PALADIN_SPEC_RETRIBUTION;
+    if (m_ai.GetCombatOrder() & PlayerbotAI::ORDERS_ASSIST || m_ai.IsDPS()) spec = PALADIN_SPEC_RETRIBUTION;
 
     if (m_CurrentJudgement == 0)
     {
@@ -574,7 +574,7 @@ void PlayerbotPaladinAI::DoNonCombatActions()
         m_bot.RemoveAurasDueToSpell(RIGHTEOUS_FURY);
 
     // Dispel magic/disease/poison
-    if (m_ai.HasDispelOrder() && DispelPlayer() & RETURN_CONTINUE)
+    if (m_ai.HasDispelOrder() && DispelPlayerOrPet() & RETURN_CONTINUE)
         return;
 
     // Revive
@@ -584,14 +584,14 @@ void PlayerbotPaladinAI::DoNonCombatActions()
     // Heal
     if (m_ai.IsHealer())
     {
-        if (HealPlayer(GetHealTarget()) & RETURN_CONTINUE)
+        if (HealPlayerOrPet(GetHealTarget()) & RETURN_CONTINUE)
             return; // RETURN_CONTINUE;
     }
     else
     {
         // Is this desirable? Debatable.
         // TODO: In a group/raid with a healer you'd want this bot to focus on DPS (it's not specced/geared for healing either)
-        if (HealPlayer(&m_bot) & RETURN_CONTINUE)
+        if (HealPlayerOrPet(&m_bot) & RETURN_CONTINUE)
             return; // RETURN_CONTINUE;
     }
 
@@ -635,6 +635,8 @@ bool PlayerbotPaladinAI::BuffHelper(PlayerbotAI* ai, uint32 spellId, Unit* targe
     uint32 bigSpellId = 0;
 
     Pet* pet = target->GetPet();
+    pet = pet && pet->IsAlive() ? pet : nullptr;
+
     uint32 petSpellId = 0, petBigSpellId = 0;
 
     // See which buff is appropriate according to class

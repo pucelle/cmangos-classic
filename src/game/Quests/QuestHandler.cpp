@@ -118,8 +118,15 @@ void WorldSession::HandleQuestgiverAcceptQuestOpcode(WorldPacket& recv_data)
     uint32 quest;
     recv_data >> guid >> quest;
 
+#ifdef BUILD_PLAYERBOT
+    // Player Bot can have this quest even NPC is not interactive.
+    bool beBoot = _player->GetPlayerbotAI();
+    if (!(beBoot || CanInteractWithQuestGiver(guid, "CMSG_QUESTGIVER_ACCEPT_QUEST")))
+        return;
+#else
     if (!CanInteractWithQuestGiver(guid, "CMSG_QUESTGIVER_ACCEPT_QUEST"))
         return;
+#endif
 
     DEBUG_LOG("WORLD: Received opcode CMSG_QUESTGIVER_ACCEPT_QUEST - for %s to %s, quest = %u", _player->GetGuidStr().c_str(), guid.GetString().c_str(), quest);
 

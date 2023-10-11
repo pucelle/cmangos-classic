@@ -157,7 +157,8 @@ CombatManeuverReturns PlayerbotHunterAI::DoFirstCombatManeuverPVP(Unit* /*pTarge
 CombatManeuverReturns PlayerbotHunterAI::DoNextCombatManeuver(Unit* pTarget)
 {
     // Face enemy, make sure bot is attacking
-    m_ai.FaceTarget(pTarget);
+    if (!m_runningAway)
+        m_ai.FaceTarget(pTarget);
 
     switch (m_ai.GetScenarioType())
     {
@@ -182,6 +183,24 @@ CombatManeuverReturns PlayerbotHunterAI::DoNextCombatManeuverPVE(Unit* pTarget)
 
     // check for pet and heal if neccessary
     Pet* pet = m_bot.GetPet();
+
+    // Summon pet if not yet, and not failed before.
+    if (!pet && PET_SUMMON > 0 && !m_petSummonFailed && HasPet(&m_bot))
+    {
+        // summon pet
+        SpellCastResult res = m_ai.CastSpell(PET_SUMMON, m_bot);
+        if (res == SPELL_FAILED_DONT_REPORT)
+        {
+            m_ai.TellMaster("My Pet is dead, will revive it after leave combat.");
+            m_petSummonFailed = true;
+        }
+        return RETURN_CONTINUE;
+    }
+
+    // Pet attack immediately.
+    if (pet && pet->IsAlive())
+        pet->AI()->AttackStart(pTarget);
+
     // TODO: clarify/simplify: !pet->GetDeathState() != ALIVE
     if (pet && PET_MEND > 0 && pet->IsAlive() && pet->GetHealthPercent() < 50 && pVictim != &m_bot && !pet->HasAura(PET_MEND, EFFECT_INDEX_0) && m_ai.CastSpell(PET_MEND, m_bot) == SPELL_CAST_OK)
     {
@@ -199,8 +218,9 @@ CombatManeuverReturns PlayerbotHunterAI::DoNextCombatManeuverPVE(Unit* pTarget)
     */
     // check if ranged combat is possible: by default chose ranged combat
     bool meleeReach = m_bot.CanReachWithMeleeAttack(pTarget);
+    bool targetAttackingMe = pVictim == &m_bot;
 
-    if (!meleeReach && m_has_ammo)
+    if (!targetAttackingMe && m_has_ammo)
     {
         // switch to ranged combat
         m_rangedCombat = true;
@@ -219,7 +239,7 @@ CombatManeuverReturns PlayerbotHunterAI::DoNextCombatManeuverPVE(Unit* pTarget)
             m_ai.TellMaster("Out of ammo!");
 
         // become monkey (increases dodge chance)...
-        if (ASPECT_OF_THE_MONKEY > 0 && !m_bot.HasAura(ASPECT_OF_THE_MONKEY, EFFECT_INDEX_0))
+        if (targetAttackingMe && m_bot.GetDistance(pTarget) <= 8.0f && ASPECT_OF_THE_MONKEY > 0 && !m_bot.HasAura(ASPECT_OF_THE_MONKEY, EFFECT_INDEX_0))
             m_ai.CastSpell(ASPECT_OF_THE_MONKEY, m_bot);
     }
 
@@ -252,26 +272,40 @@ CombatManeuverReturns PlayerbotHunterAI::DoNextCombatManeuverPVE(Unit* pTarget)
     // Distance management: avoid to be in the dead zone where neither melee nor range can be used: keep distance whenever possible
     // If not in range: come closer
     // Do not do it if passive or stay orders.
-    if (!m_ai.In_Reach(pTarget, AUTO_SHOT) &&
-            !(m_ai.GetCombatOrder() & PlayerbotAI::ORDERS_PASSIVE) &&
-            (m_bot.GetPlayerbotAI()->GetMovementOrder() != PlayerbotAI::MOVEMENT_STAY))
+    if (!m_rangedCombat &&
+        !m_ai.In_Reach(pTarget, AUTO_SHOT) &&
+        !(m_ai.GetCombatOrder() & PlayerbotAI::ORDERS_PASSIVE) &&
+        (m_bot.GetPlayerbotAI()->GetMovementOrder() != PlayerbotAI::MOVEMENT_STAY))
     {
         m_ai.InterruptCurrentCastingSpell();
-        m_bot.GetMotionMaster()->MoveFollow(pTarget, 20.0f, m_bot.GetOrientation());
+        m_bot.GetMotionMaster()->MoveChase(pTarget, 20.0f, m_bot.GetOrientation());
         return RETURN_CONTINUE;
     }
+
+    // Stop melee attacking when doing ranged attacking.
+    if (m_rangedCombat)
+        m_bot.MeleeAttackStop(pVictim);
+
     // If below ranged combat distance and bot is not attacked by target
     // make it flee from target for a few seconds to get in ranged distance again
     // Do not do it if passive or stay orders.
-    if (pVictim != &m_bot && m_bot.GetDistance(pTarget, true, DIST_CALC_COMBAT_REACH_WITH_MELEE) <= 8.0f &&
-            !(m_ai.GetCombatOrder() & PlayerbotAI::ORDERS_PASSIVE) &&
-            (m_bot.GetPlayerbotAI()->GetMovementOrder() != PlayerbotAI::MOVEMENT_STAY))
+    if (m_rangedCombat && m_bot.GetDistance(pTarget, true, DIST_CALC_COMBAT_REACH_WITH_MELEE) <= 8.0f &&
+        !targetAttackingMe &&
+        !(m_ai.GetCombatOrder() & PlayerbotAI::ORDERS_PASSIVE) &&
+        (m_bot.GetPlayerbotAI()->GetMovementOrder() != PlayerbotAI::MOVEMENT_STAY))
     {
         m_ai.InterruptCurrentCastingSpell();
-        m_ai.SetIgnoreUpdateTime(2);
+        m_ai.SetIgnoreUpdateTime(1);
         m_bot.GetMotionMaster()->Clear(false);
-        m_bot.GetMotionMaster()->MoveFleeing(pTarget, 2);
+        m_bot.GetMotionMaster()->MoveFarAway(pTarget);
+        m_runningAway = true;
         return RETURN_CONTINUE;
+    }
+
+    // Stop running away.
+    if (m_runningAway) {
+        m_ai.FaceTarget(pTarget);
+        m_runningAway = false;
     }
 
     // damage spells

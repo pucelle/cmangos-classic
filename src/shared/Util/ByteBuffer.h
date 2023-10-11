@@ -253,7 +253,13 @@ class ByteBuffer
 
         ByteBuffer& operator>>(std::string& value)
         {
-            read(value, true);
+            // Slove a parsing mistake when having Chinese characters.
+            try
+            {
+                read(value, true);
+            }
+            catch (...){}
+
             return *this;
         }
 

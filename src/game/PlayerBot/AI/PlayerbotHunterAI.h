@@ -116,6 +116,7 @@ class PlayerbotHunterAI : PlayerbotClassAI
         bool m_petSummonFailed;
         bool m_rangedCombat;
         bool m_has_ammo;
+        bool m_runningAway;
 
         uint32 PET_SUMMON,
                PET_DISMISS,

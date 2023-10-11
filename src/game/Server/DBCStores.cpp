@@ -118,6 +118,7 @@ DBCStorage <SoundEntriesEntry> sSoundEntriesStore(SoundEntriesfmt);
 
 DBCStorage <SpellItemEnchantmentEntry> sSpellItemEnchantmentStore(SpellItemEnchantmentfmt);
 SpellCategoryStore sSpellCategoryStore;
+SpellSkillLineCategory sSpellSkillLineCategoryStore;
 ItemSpellCategoryStore sItemSpellCategoryStore;
 PetFamilySpellsStore sPetFamilySpellsStore;
 
@@ -332,6 +333,8 @@ void LoadDBCStores(const std::string& dataPath)
 
         if (!skillLine)
             continue;
+
+        sSpellSkillLineCategoryStore[skillLine->spellId] = skillLine->skillId;
 
         std::set<uint32> wrongIds = { 4073, 12749, 19804, 13258, 13166 };
         if (wrongIds.find(skillLine->spellId) != wrongIds.end())

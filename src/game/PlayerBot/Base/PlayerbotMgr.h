@@ -54,6 +54,7 @@ class PlayerbotMgr
         // Notice: that this is static which means it is called once for all bots of the master.
         void HandleMasterIncomingPacket(const WorldPacket& packet);
         void HandleMasterOutgoingPacket(const WorldPacket& packet);
+        void SetQuestExplored(uint32 questId, bool succeed);
 
         void LoginPlayerBot(ObjectGuid guid);
         void LogoutPlayerBot(ObjectGuid guid);          // mark bot to be removed on next update
@@ -75,6 +76,7 @@ class PlayerbotMgr
         bool m_confDisableBots;
         bool m_confDebugWhisper;
         float m_confFollowDistance[2];
+        uint32 gConfigSellLevelDiff;
         bool m_confCollectCombat;
         bool m_confCollectQuest;
         bool m_confCollectProfession;

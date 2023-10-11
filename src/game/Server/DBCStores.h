@@ -119,6 +119,7 @@ extern DBCStorage <SpellDurationEntry>           sSpellDurationStore;
 extern DBCStorage <SpellFocusObjectEntry>        sSpellFocusObjectStore;
 extern DBCStorage <SpellItemEnchantmentEntry>    sSpellItemEnchantmentStore;
 extern SpellCategoryStore                        sSpellCategoryStore;
+extern SpellSkillLineCategory                    sSpellSkillLineCategoryStore;
 extern ItemSpellCategoryStore                    sItemSpellCategoryStore;
 extern PetFamilySpellsStore                      sPetFamilySpellsStore;
 extern DBCStorage <SpellRadiusEntry>             sSpellRadiusStore;

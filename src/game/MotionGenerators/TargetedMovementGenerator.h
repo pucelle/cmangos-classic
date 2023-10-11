@@ -284,4 +284,57 @@ class FormationMovementGenerator : public FollowMovementGenerator
         Position m_resetPoint;
 };
 
+
+class CloserMovementGenerator : public MovementGenerator
+{
+public:
+    explicit CloserMovementGenerator(Unit *source) :
+        m_target(source), i_x(0.0f), i_y(0.0f), i_z(0.0f), i_radius(0.0f), i_pathLength(0.0f)
+    {}
+
+    void Initialize(Unit& owner) override;
+    void Finalize(Unit& owner) override;
+    void Interrupt(Unit& owner) override;
+    void Reset(Unit& owner) override;
+    bool Update(Unit& owner, const uint32& diff) override;
+
+    MovementGeneratorType GetMovementGeneratorType() const override { return RETREAT_MOTION_TYPE; }
+
+protected:
+    virtual bool _getLocation(Unit& owner, float& x, float& y, float& z);
+    virtual int32 _setLocation(Unit& owner);
+
+    Unit* m_target;
+    float i_x, i_y, i_z;
+    float i_radius;
+    float i_pathLength;
+};
+
+
+class FarAwayMovementGenerator : public MovementGenerator
+{
+public:
+    explicit FarAwayMovementGenerator(Unit *source) :
+        m_target(source), i_x(0.0f), i_y(0.0f), i_z(0.0f), i_radius(0.0f), i_pathLength(0.0f)
+    {}
+
+    void Initialize(Unit& owner) override;
+    void Finalize(Unit& owner) override;
+    void Interrupt(Unit& owner) override;
+    void Reset(Unit& owner) override;
+    bool Update(Unit& owner, const uint32& diff) override;
+
+    MovementGeneratorType GetMovementGeneratorType() const override { return RETREAT_MOTION_TYPE; }
+
+protected:
+    virtual bool _getLocation(Unit& owner, float& x, float& y, float& z);
+    virtual int32 _setLocation(Unit& owner);
+
+    Unit *m_target;
+    float i_x, i_y, i_z;
+    float i_radius;
+    float i_pathLength;
+};
+
+
 #endif

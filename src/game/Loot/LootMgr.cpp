@@ -16,6 +16,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#include <stdlib.h>
 #include "Loot/LootMgr.h"
 #include "Log.h"
 #include "Util/ProgressBar.h"
@@ -59,6 +60,9 @@ LootStore LootTemplates_Skinning("skinning_loot_template",     "creature skinnin
 class LootTemplate::LootGroup                               // A set of loot definitions for items (refs are not allowed)
 {
     public:
+        // Guess the normal quality of the loot group.
+        ItemQualities guessLootQuality() const;
+
         void AddEntry(LootStoreItem& item);                 // Adds an entry to the group (at loading stage)
         bool HasQuestDrop() const;                          // True if group includes at least 1 quest drop entry
         bool HasQuestDropForPlayer(Player const* player) const;
@@ -281,6 +285,28 @@ void LootStore::ReportNotExistedId(uint32 id) const
 //
 // --------- LootStoreItem ---------
 //
+
+// Guess the normal quality of the loot template.
+ItemQualities LootStoreItem::guessLootQuality() const {
+
+    // Looking for at reference template.
+    if (this->mincountOrRef < 0) {
+        LootTemplate const* referenceTemplate = LootTemplates_Reference.GetLootFor(this->mincountOrRef);
+        if (referenceTemplate) {
+            return referenceTemplate->guessLootQuality();
+        }
+        else {
+            return ITEM_QUALITY_POOR;
+        }
+    }
+
+    // Look from item id.
+    else {
+        ItemPrototype const* itemProto = ObjectMgr::GetItemPrototype(this->itemid);
+
+        return itemProto ? ItemQualities(itemProto->Quality) : ITEM_QUALITY_POOR;
+    }
+}
 
 // Checks if the entry (quest, non-quest, reference) takes it's chance (at loot generation)
 // RATE_DROP_ITEMS is no longer used for all types of entries
@@ -2319,6 +2345,22 @@ ByteBuffer& operator<<(ByteBuffer& b, LootItem const& li)
 // --------- LootTemplate::LootGroup ---------
 //
 
+// Guess the normal quality of the loot group.
+ItemQualities LootTemplate::LootGroup::guessLootQuality() const {
+    LootStoreItem const* item = !ExplicitlyChanced.empty()
+        ? &ExplicitlyChanced[0]
+        : !EqualChanced.empty()
+        ? &EqualChanced[0]
+        : nullptr;
+
+    if (item) {
+        return item->guessLootQuality();
+    }
+    else {
+        return ITEM_QUALITY_POOR;
+    }
+}
+
 // Adds an entry to the group (at loading stage)
 void LootTemplate::LootGroup::AddEntry(LootStoreItem& item)
 {
@@ -2331,6 +2373,84 @@ void LootTemplate::LootGroup::AddEntry(LootStoreItem& item)
 // Rolls an item from the group, returns nullptr if all miss their chances
 LootStoreItem const* LootTemplate::LootGroup::Roll(Loot const& loot, Player const* lootOwner) const
 {
+    // Will improve the low rate drops in a drop group.
+    if (sWorld.getConfig(CONFIG_GAME_ENHANCE_BALANCE_DROP_GROUP)
+        && ExplicitlyChanced.size() > 0)
+    {
+        uint32 existedLength = ExplicitlyChanced.size();
+
+        // All the adjusted chances.
+        float* adjustedChanced = new float[existedLength]();
+
+        // All the existed chances.
+        float existedTotalChance = 0.0f;
+        float adjustedTotalChance = 0.0f;
+        float averageChanced = 100.0f / float(ExplicitlyChanced.size() + ExplicitlyChanced.size());
+
+        for (uint32 i = 0; i < existedLength; ++i) {
+            LootStoreItem item = ExplicitlyChanced[i];
+            float chanceBase = item.chance;
+            ItemQualities quality = item.guessLootQuality();
+            float qualityModifier = sWorld.getConfig(qualityToRate[quality]);
+
+            // Multiply the chance, but limit as not bigger than average chance,
+            // Otherwise it must now lower than original value.
+            float adjustedChance = std::max(
+                std::min(chanceBase * qualityModifier, averageChanced),
+                chanceBase
+            );
+
+            existedTotalChance += chanceBase;
+            adjustedTotalChance += adjustedChance;
+            adjustedChanced[i] = adjustedChance;
+        }
+
+        if (!EqualChanced.empty()) {
+            float restChanceForEach = (1.0f - existedTotalChance) / float(EqualChanced.size());
+
+            for (uint32 i = 0; i < EqualChanced.size(); ++i) {
+                LootStoreItem item = EqualChanced[i];
+                float chanceBase = restChanceForEach;
+                ItemQualities quality = item.guessLootQuality();
+                float qualityModifier = sWorld.getConfig(qualityToRate[quality]);
+
+                // Multiply the chance, but limit as not bigger than average chance.
+                // Otherwise it must not lower than original chance.
+                float adjustedChance = std::max(
+                    std::min(chanceBase * qualityModifier, averageChanced),
+                    chanceBase
+                );
+
+                adjustedTotalChance += adjustedChance;
+            }
+        }
+
+        // Scale the total chance to 100%, if less than 100%, ignore it.
+        float scaling = std::min(100.0f / adjustedTotalChance, 1.0f);
+
+        for (uint32 i = 0; i < existedLength; i++) {
+            adjustedChanced[i] *= scaling;
+        }
+
+        float Roll = rand_chance_f();
+
+        for (uint32 i = 0; i < existedLength; ++i) // check each explicitly chanced entry in the template and modify its chance based on quality.
+        {
+            if (adjustedChanced[i] >= 100.0f) {
+                return &ExplicitlyChanced[i];
+            }
+
+            Roll -= adjustedChanced[i];
+
+            if (Roll < 0) {
+                return &ExplicitlyChanced[i];
+            }
+        }
+
+        delete[] adjustedChanced;
+    }
+    else
+
     if (!ExplicitlyChanced.empty())                         // First explicitly chanced entries are checked
     {
         std::vector <LootStoreItem const*> lootStoreItemVector; // we'll use new vector to make easy the randomization
@@ -2499,6 +2619,23 @@ void LootTemplate::LootGroup::CheckLootRefs(LootIdSet* ref_set) const
 //
 // --------- LootTemplate ---------
 //
+
+// Guess the normal quality of the loot template.
+ItemQualities LootTemplate::guessLootQuality() const {
+    if (!Entries.empty()) {
+        return Entries[0].guessLootQuality();
+    }
+
+    // Search in group.
+    else if (!Groups.empty()) {
+        return Groups[0].guessLootQuality();
+    }
+
+    // No result.
+    else {
+        return ITEM_QUALITY_POOR;
+    }
+}
 
 // Adds an entry to the group (at loading stage)
 void LootTemplate::AddEntry(LootStoreItem& item)

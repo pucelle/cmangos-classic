@@ -38,6 +38,7 @@
 #include "BattleGround/BattleGroundMgr.h"
 #include "AuctionHouse/AuctionHouseMgr.h"
 #include "Loot/LootMgr.h"
+#include "Config/Config.h"
 
 /**
  * Creates a new MailSender object.
@@ -308,7 +309,15 @@ void MailDraft::SendMailTo(MailReceiver const& receiver, MailSender const& sende
         expire_delay = DAY;
     // default case: expire time if COD 3 days, if no COD 30 days
     else
+    {   
         expire_delay = (m_COD > 0) ? 3 * DAY : 30 * DAY;
+
+        if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED))
+        {
+            uint32 days = sWorld.getConfig(CONFIG_GAME_ENHANCE_MAIL_UNTIL_EXPIRED_DAYS);
+            expire_delay = days * DAY;
+        }
+    }
 
     time_t expire_time = deliver_time + expire_delay;
 

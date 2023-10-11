@@ -374,6 +374,13 @@ Unit::Unit() :
     // implement 50% base damage from offhand
     m_auraModifiersGroup[UNIT_MOD_DAMAGE_OFFHAND][TOTAL_PCT] = 0.5f;
 
+    // Reset offhand damage.
+    if (IsPlayer()
+        && sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED))
+    {
+        m_auraModifiersGroup[UNIT_MOD_DAMAGE_OFFHAND][TOTAL_PCT] = sWorld.getConfig(CONFIG_GAME_ENHANCE_OFFHAND_DAMAGE_RATE);
+    }
+
     for (int i = 0; i < MAX_STATS; ++i)
         m_createStats[i] = 0.0f;
 
@@ -3150,6 +3157,17 @@ float Unit::CalculateEffectiveDodgeChance(const Unit* attacker, WeaponAttackType
     float chance = 0.0f;
 
     chance += GetDodgeChance();
+
+    // Reset monstor's base dodge chance when fight with player, but not with warrior in battle stance.
+    // Hunter pet's class is recognized as `Warrior`.
+    if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED)
+        && attacker->IsControlledByPlayer()
+        && !(attacker->IsPlayer() && attacker->getClass() == CLASS_WARRIOR && attacker->HasAura(2457, EFFECT_INDEX_0)))
+    {
+        chance -= 5.0f;
+        chance += sWorld.getConfig(CONFIG_GAME_ENHANCE_BASE_MELEE_DODGE_CHANCE);
+    }
+
     // Own chance appears to be zero / below zero / unmeaningful for some reason (debuffs?): skip calculation, unit is incapable
     if (chance < 0.005f)
         return 0.0f;
@@ -3177,6 +3195,15 @@ float Unit::CalculateEffectiveParryChance(const Unit* attacker, WeaponAttackType
         return 0.0f;
 
     chance += GetParryChance();
+
+    // Reset monstor's base parry chance when fight with player.
+    if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED)
+        && attacker->IsControlledByPlayer())
+    {
+        chance -= 5.0f;
+        chance += sWorld.getConfig(CONFIG_GAME_ENHANCE_BASE_MELEE_PARRY_CHANCE);
+    }
+
     // Own chance appears to be zero / below zero / unmeaningful for some reason (debuffs?): skip calculation, unit is incapable
     if (chance < 0.005f)
         return 0.0f;
@@ -3206,6 +3233,15 @@ float Unit::CalculateEffectiveBlockChance(const Unit* attacker, WeaponAttackType
     float chance = 0.0f;
 
     chance += GetBlockChance();
+
+    // Reset monstor's base block chance when fight with player.
+    if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED)
+        && attacker->IsControlledByPlayer())
+    {
+        chance -= 5.0f;
+        chance += sWorld.getConfig(CONFIG_GAME_ENHANCE_BASE_MELEE_BLOCK_CHANCE);
+    }
+
     // Own chance appears to be zero / below zero / unmeaningful for some reason (debuffs?): skip calculation, unit is incapable
     if (chance < 0.005f)
         return 0.0f;
@@ -3481,6 +3517,13 @@ float Unit::GetCritMultiplier(SpellSchoolMask dmgSchoolMask, uint32 creatureType
             case SPELL_DAMAGE_CLASS_NONE:
             case SPELL_DAMAGE_CLASS_MAGIC:
                 multiplier = 1.5f;
+
+                if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED)
+                    && IsControlledByPlayer())
+                {
+                    multiplier = 1.0f + sWorld.getConfig(CONFIG_GAME_ENHANCE_SPELL_CRITIAL_BONUS_RATE);
+                }
+
                 break;
         }
     }
@@ -3698,9 +3741,29 @@ float Unit::CalculateEffectiveMissChance(const Unit *victim, WeaponAttackType at
         return 0.0f;
     const bool ranged = (attType == RANGED_ATTACK);
     const bool weapon = (!ability || IsSpellUseWeaponSkill(ability));
+
+    // Reset melee hit chance.
+    if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED)
+        && IsControlledByPlayer()
+        && sWorld.getConfig(CONFIG_GAME_ENHANCE_BASE_MELEE_HIT_CHANCE) > 0.0f)
+    {
+        chance = 100.0f - sWorld.getConfig(CONFIG_GAME_ENHANCE_BASE_MELEE_HIT_CHANCE);
+    }
+
     // Check if dual wielding, add additional miss penalty - when mainhand has on next swing spell, offhand doesnt suffer penalty
     if (!ability && !ranged && hasOffhandWeaponForAttack() && (!m_currentSpells[CURRENT_MELEE_SPELL] || !IsNextMeleeSwingSpell(m_currentSpells[CURRENT_MELEE_SPELL]->m_spellInfo)))
-        chance += 19.0f;
+    {
+        // Reset player's offhand hit chance.
+        if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED)
+            && IsControlledByPlayer())
+        {
+            chance += sWorld.getConfig(CONFIG_GAME_ENHANCE_OFFHAND_HIT_CHANCE_REDUCE);
+        }
+        else {
+            chance += 19.0f;
+        }
+    }
+    
     // Skill difference can be both negative and positive. Positive difference means that:
     // a) Victim's level is higher
     // b) Victim has additional defense skill bonuses
@@ -3709,6 +3772,22 @@ float Unit::CalculateEffectiveMissChance(const Unit *victim, WeaponAttackType at
     int32 difference = int32(victim->GetDefenseSkillValue(this) - skill);
     // Defense/weapon skill factor: for players and NPCs
     float factor = 0.04f;
+
+    // Reset player's hit chance decrease rate.
+    if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED)
+        && IsControlledByPlayer())
+    {
+        if (difference > 10)
+        {
+            factor = sWorld.getConfig(CONFIG_GAME_ENHANCE_HIGH_HIT_CHANCE_REDUCE_PER_LEVEL) / 5.0;
+        }
+        else
+        {
+            factor = sWorld.getConfig(CONFIG_GAME_ENHANCE_LOW_HIT_CHANCE_REDUCE_PER_LEVEL) / 5.0;
+        }
+    }
+    else
+
     // NPCs gain additional bonus to incoming hit chance reduction based on positive skill difference (same value as bonus parry rate)
     if (!vsPlayerOrPet && difference > 0)
     {
@@ -3785,6 +3864,15 @@ float Unit::CalculateSpellMissChance(const Unit* victim, SpellSchoolMask schoolM
         return CalculateEffectiveMissChance(victim, GetWeaponAttackType(spell), spell);
 
     chance += victim->GetMissChance(spell, schoolMask);
+
+    // Reset base spell hit chance.
+    if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED)
+        && IsControlledByPlayer()
+        && sWorld.getConfig(CONFIG_GAME_ENHANCE_BASE_SPELL_HIT_CHANCE) > 0.0f)
+    {
+        chance = 100.0f - sWorld.getConfig(CONFIG_GAME_ENHANCE_BASE_SPELL_HIT_CHANCE);
+    }
+
     // Victim's own chance appears to be zero / below zero / unmeaningful for some reason (debuffs?): skip calculation, unit can't be missed
     if (chance < 0.005f)
         return 0.0f;
@@ -3793,12 +3881,27 @@ float Unit::CalculateSpellMissChance(const Unit* victim, SpellSchoolMask schoolM
     int32 difference = int32(victim->GetLevelForTarget(this) - GetLevelForTarget(victim));
     // Level difference factor: 1% per level
     uint8 factor = 1;
+
+    // Reset player's hit chance decrease factor.
+    if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED)
+        && IsControlledByPlayer())
+    {
+        factor = uint8(sWorld.getConfig(CONFIG_GAME_ENHANCE_LOW_HIT_CHANCE_REDUCE_PER_LEVEL));
+    }
+
     // NPCs and players gain additional bonus to incoming spell hit chance reduction based on positive level difference
     if (difference > 2)
     {
         chance += (2 * factor);
         // Miss bonus for each additional level of difference above 2
         factor = (vsPlayerOrPet ? 7 : 11);
+
+        if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED)
+            && IsControlledByPlayer())
+        {
+            factor = uint8(sWorld.getConfig(CONFIG_GAME_ENHANCE_HIGH_HIT_CHANCE_REDUCE_PER_LEVEL));
+        }
+
         chance += ((difference - 2) * factor);
     }
     else
@@ -6947,6 +7050,40 @@ uint32 Unit::SpellDamageBonusDone(Unit* victim, SpellSchoolMask schoolMask, Spel
     // Creature damage
     if (GetTypeId() == TYPEID_UNIT && !((Creature*)this)->IsPet())
         DoneTotalMod *= Creature::_GetSpellDamageMod(((Creature*)this)->GetCreatureInfo()->Rank);
+
+    // Modify damage depend on dungeon player count.
+    if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED))
+    {
+        Map* map = GetMap();
+        float rate = 1.0f;
+
+        if (map->IsDungeon())
+        {
+            DungeonMap* dungeon = (DungeonMap*)map;
+            if (dungeon->GetMaxPlayers() == 5)
+            {
+                rate = sWorld.getConfig(CONFIG_GAME_ENHANCE_DUNGEON_5MAN_CREATURE_DAMAGE_RATE);
+            }
+            else if (dungeon->GetMaxPlayers() == 10)
+            {
+                rate = sWorld.getConfig(CONFIG_GAME_ENHANCE_DUNGEON_10MAN_CREATURE_DAMAGE_RATE);
+            }
+            else if (dungeon->GetMaxPlayers() == 15)
+            {
+                rate = sWorld.getConfig(CONFIG_GAME_ENHANCE_DUNGEON_15MAN_CREATURE_DAMAGE_RATE);
+            }
+            else if (dungeon->GetMaxPlayers() == 20)
+            {
+                rate = sWorld.getConfig(CONFIG_GAME_ENHANCE_DUNGEON_20MAN_CREATURE_DAMAGE_RATE);
+            }
+            else if (dungeon->GetMaxPlayers() == 40)
+            {
+                rate = sWorld.getConfig(CONFIG_GAME_ENHANCE_DUNGEON_40MAN_CREATURE_DAMAGE_RATE);
+            }
+        }
+
+        DoneTotalMod *= rate;
+    }
 
     AuraList const& mModDamagePercentDone = GetAurasByType(SPELL_AURA_MOD_DAMAGE_PERCENT_DONE);
     for (auto i : mModDamagePercentDone)
@@ -11715,6 +11852,15 @@ float Unit::OCTRegenHPPerSpirit() const
         case CLASS_WARRIOR: regen = (Spirit * 1.26 - 22.6); break;
     }
 
+    // Reset player's hp regenerate per spirit.
+    if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED)
+        && sWorld.getConfig(CONFIG_GAME_ENHANCE_HP_REGENT_PER_SPIRIT) > 0.0f
+        && IsControlledByPlayer())
+    {
+        float rate = sWorld.getConfig(CONFIG_GAME_ENHANCE_HP_REGENT_PER_SPIRIT);
+        regen = Spirit * rate;
+    }
+
     return regen;
 }
 
@@ -11734,6 +11880,15 @@ float Unit::OCTRegenMPPerSpirit() const
         case CLASS_PRIEST:  addvalue = (Spirit / 4 + 12.5); break;
         case CLASS_SHAMAN:  addvalue = (Spirit / 5 + 17);   break;
         case CLASS_WARLOCK: addvalue = (Spirit / 5 + 15);   break;
+    }
+
+    // Reset player's mp regenerate per spirit.
+    if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED)
+        && sWorld.getConfig(CONFIG_GAME_ENHANCE_MP_REGENT_PER_SPIRIT) > 0.0f
+        && IsControlledByPlayer())
+    {
+        float rate = sWorld.getConfig(CONFIG_GAME_ENHANCE_MP_REGENT_PER_SPIRIT);
+        addvalue = Spirit * rate + 15.0f;
     }
 
     addvalue /= 2.0f;   // the above addvalue are given per tick which occurs every 2 seconds, hence this divide by 2

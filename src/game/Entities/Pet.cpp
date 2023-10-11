@@ -16,6 +16,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#include <stdlib.h>
 #include "Entities/Pet.h"
 #include "Database/DatabaseEnv.h"
 #include "Log.h"
@@ -26,6 +27,7 @@
 #include "Spells/SpellAuras.h"
 #include "Entities/Unit.h"
 #include "Entities/Transports.h"
+#include "World/World.h"
 
 // numbers represent minutes * 100 while happy (you get 100 loyalty points per min while happy)
 uint32 const LevelUpLoyalty[6] =
@@ -717,6 +719,13 @@ void Pet::RegenerateAll(uint32 diff)
         if (!IsInCombat())
             RegenerateHealth();
 
+        // Can restore health even in combat.
+        else if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED)
+            && sWorld.getConfig(CONFIG_GAME_ENHANCE_RESTORE_HEALTH_RATE_IN_COMBAT) > 0.0f)
+        {
+            RegenerateHealth();
+        }
+
         RegeneratePower(4.f);
         m_regenTimer -= 4000;
     }
@@ -1234,6 +1243,27 @@ void Pet::InitStatsForLevel(uint32 petlevel)
         SetCreateResistance(SPELL_SCHOOL_ARCANE, cInfo->ResistanceArcane);
     }
 
+    // Keeps the pet's resistance.
+    if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED)
+        && GetOwner()
+        && GetOwner()->IsPlayer())
+    {
+        if (sWorld.getConfig(CONFIG_GAME_ENHANCE_HUNTER_PET_KEEPS_DAMAGE_SCHOOL))
+        {
+            SetMeleeDamageSchool(SpellSchools(cInfo->DamageSchool));
+        }
+
+        if (sWorld.getConfig(CONFIG_GAME_ENHANCE_HUNTER_PET_KEEPS_RESISTANCE))
+        {
+            SetCreateResistance(SPELL_SCHOOL_HOLY, cInfo->ResistanceHoly);
+            SetCreateResistance(SPELL_SCHOOL_FIRE, cInfo->ResistanceFire);
+            SetCreateResistance(SPELL_SCHOOL_NATURE, cInfo->ResistanceNature);
+            SetCreateResistance(SPELL_SCHOOL_FROST, cInfo->ResistanceFrost);
+            SetCreateResistance(SPELL_SCHOOL_SHADOW, cInfo->ResistanceShadow);
+            SetCreateResistance(SPELL_SCHOOL_ARCANE, cInfo->ResistanceArcane);
+        }
+    }
+
     float health = 0.f;
     float mana = 0.f;
     float armor = 0.f;
@@ -1246,6 +1276,17 @@ void Pet::InitStatsForLevel(uint32 petlevel)
         case HUNTER_PET:
         {
             CreatureFamilyEntry const* cFamily = sCreatureFamilyStore.LookupEntry(cInfo->Family);
+
+            // Keeps the pet's model scale.
+            if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED)
+                && sWorld.getConfig(CONFIG_GAME_ENHANCE_HUNTER_PET_KEEPS_SIZE)
+                && GetOwner()
+                && GetOwner()->IsPlayer())
+            {
+                SetObjectScale(cInfo->Scale);
+                UpdateModelData();
+            }
+            else
 
             if (cFamily && cFamily->minScale > 0.0f)
             {
@@ -1282,6 +1323,29 @@ void Pet::InitStatsForLevel(uint32 petlevel)
 
                 // First we divide attack time by standard attack time, and then multipy by level and damage mod.
                 uint32 mDmg = (GetAttackTime(BASE_ATTACK) * petlevel) / 2000;
+
+                // Pet can gain more stats if is elite type.
+                if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED)
+                    && GetOwner()
+                    && GetOwner()->IsPlayer()
+                    && (cInfo->Rank == CREATURE_ELITE_RAREELITE || cInfo->Rank == CREATURE_ELITE_RARE))
+                {
+                    float petStatRate = 1.0f + sWorld.getConfig(CONFIG_GAME_ENHANCE_HUNTER_PET_RARE_GAIN_STAT_RATE);
+                    health *= petStatRate;
+                    mana *= petStatRate;
+                    armor *= petStatRate;
+                    mDmg *= petStatRate;
+                }
+
+                // Keeps the pet's armor multiply.
+                if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED)
+                    && sWorld.getConfig(CONFIG_GAME_ENHANCE_HUNTER_PET_KEEPS_ARMOR)
+                    && GetOwner()
+                    && GetOwner()->IsPlayer())
+                {
+                    float armorMultiply = std::min(2.0f, std::max(1.0f, cInfo->ArmorMultiplier));
+                    armor *= armorMultiply;
+                }
 
                 // Set damage
                 SetBaseWeaponDamage(BASE_ATTACK, MINDAMAGE, float(mDmg - mDmg / 4.f));
@@ -1327,6 +1391,40 @@ void Pet::InitStatsForLevel(uint32 petlevel)
                     // Apply custom damage setting (from config)
                     minDmg *= _GetDamageMod(cInfo->Rank);
 
+                    // Modify damage depend on dungeon player count.
+                    if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED))
+                    {
+                        Map* map = GetMap();
+                        float rate = 1.0f;
+
+                        if (map->IsDungeon())
+                        {
+                            DungeonMap* dungeon = (DungeonMap*)map;
+                            if (dungeon->GetMaxPlayers() == 5)
+                            {
+                                rate = sWorld.getConfig(CONFIG_GAME_ENHANCE_DUNGEON_5MAN_CREATURE_DAMAGE_RATE);
+                            }
+                            else if (dungeon->GetMaxPlayers() == 10)
+                            {
+                                rate = sWorld.getConfig(CONFIG_GAME_ENHANCE_DUNGEON_10MAN_CREATURE_DAMAGE_RATE);
+                            }
+                            else if (dungeon->GetMaxPlayers() == 15)
+                            {
+                                rate = sWorld.getConfig(CONFIG_GAME_ENHANCE_DUNGEON_15MAN_CREATURE_DAMAGE_RATE);
+                            }
+                            else if (dungeon->GetMaxPlayers() == 20)
+                            {
+                                rate = sWorld.getConfig(CONFIG_GAME_ENHANCE_DUNGEON_20MAN_CREATURE_DAMAGE_RATE);
+                            }
+                            else if (dungeon->GetMaxPlayers() == 40)
+                            {
+                                rate = sWorld.getConfig(CONFIG_GAME_ENHANCE_DUNGEON_40MAN_CREATURE_DAMAGE_RATE);
+                            }
+                        }
+
+                        minDmg *= rate;
+                    }
+
                     SetBaseWeaponDamage(BASE_ATTACK, MINDAMAGE, float(minDmg));
                     SetBaseWeaponDamage(BASE_ATTACK, MAXDAMAGE, float(minDmg * 1.5));
                 }
@@ -1356,6 +1454,35 @@ void Pet::InitStatsForLevel(uint32 petlevel)
                 // Set damage
                 SetBaseWeaponDamage(BASE_ATTACK, MINDAMAGE, 1);
                 SetBaseWeaponDamage(BASE_ATTACK, MAXDAMAGE, 1);
+            }
+
+            // Pet gain both melee and spell damage from it's owner's spell power.
+            if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED)
+                && GetOwner()
+                && GetOwner()->IsPlayer())
+            {
+                switch (GetOwner()->getClass())
+                {
+                    case CLASS_WARLOCK:
+                    {
+                        uint32 fire = GetOwner()->GetUInt32Value(PLAYER_FIELD_MOD_DAMAGE_DONE_POS + SPELL_SCHOOL_FIRE);
+                        uint32 shadow = GetOwner()->GetUInt32Value(PLAYER_FIELD_MOD_DAMAGE_DONE_POS + SPELL_SCHOOL_SHADOW);
+                        uint32 spellPower = std::max(fire, shadow);
+                        float bonusRate = sWorld.getConfig(CONFIG_GAME_ENHANCE_WARLOCK_PET_DAMAGE_BONUS_RATE);
+                        SetBonusDamage(int32(spellPower * bonusRate));
+                        break;
+                    }
+
+                    case CLASS_MAGE:
+                    {
+                        float bonusRate = sWorld.getConfig(CONFIG_GAME_ENHANCE_MAGE_PET_DAMAGE_BONUS_RATE);
+                        float spellPower = GetOwner()->GetUInt32Value(PLAYER_FIELD_MOD_DAMAGE_DONE_POS + SPELL_SCHOOL_FROST);
+                        SetBonusDamage(int32(spellPower * bonusRate));
+                        break;
+                    }
+                    default:
+                        break;
+                }
             }
 
             break;
@@ -2286,6 +2413,20 @@ void Pet::RegenerateHealth()
         }
         default:
             return;
+    }
+
+    if (IsInCombat()) {
+
+        // Adjust health regenerating in combat, such that spirit is much more useful.
+        if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED)
+            && GetOwner()
+            && GetOwner()->IsPlayer())
+        {
+            addvalue *= sWorld.getConfig(CONFIG_GAME_ENHANCE_RESTORE_HEALTH_RATE_IN_COMBAT);
+        }
+        else {
+            addvalue = 0;
+        }
     }
 
     ModifyHealth(addvalue);

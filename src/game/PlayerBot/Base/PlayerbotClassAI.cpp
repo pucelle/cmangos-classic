@@ -29,8 +29,8 @@ PlayerbotClassAI::PlayerbotClassAI(Player& master, Player& bot, PlayerbotAI& ai)
 {
 
     m_MinHealthPercentTank   = 80;
-    m_MinHealthPercentHealer = 60;
-    m_MinHealthPercentDPS    = 30;
+    m_MinHealthPercentHealer = 65;
+    m_MinHealthPercentDPS    = 50;
     m_MinHealthPercentMaster = m_MinHealthPercentDPS;
 
     ClearWait();
@@ -93,10 +93,12 @@ bool PlayerbotClassAI::CastHoTOnTank()
     return false;
 }
 
-CombatManeuverReturns PlayerbotClassAI::HealPlayer(Player* target)
+CombatManeuverReturns PlayerbotClassAI::HealPlayerOrPet(Unit* target)
 {
     if (!target) return RETURN_NO_ACTION_INVALIDTARGET;
-    if (target->IsInDuel() || !target->IsAlive()) return RETURN_NO_ACTION_INVALIDTARGET;
+
+    if (typeid(&target) == typeid(Player) && ((Player*) target)->IsInDuel() || !target->IsAlive())
+        return RETURN_NO_ACTION_INVALIDTARGET;
 
     return RETURN_NO_ACTION_OK;
 }
@@ -109,10 +111,11 @@ CombatManeuverReturns PlayerbotClassAI::ResurrectPlayer(Player* target)
     return RETURN_NO_ACTION_OK;
 }
 
-CombatManeuverReturns PlayerbotClassAI::DispelPlayer(Player* target)
+CombatManeuverReturns PlayerbotClassAI::DispelPlayerOrPet(Unit* target)
 {
     if (!target) return RETURN_NO_ACTION_INVALIDTARGET;
-    if (target->IsInDuel() || !target->IsAlive()) return RETURN_NO_ACTION_INVALIDTARGET;
+    if (typeid(&target) == typeid(Player) && ((Player*)target)->IsInDuel() || !target->IsAlive())
+        return RETURN_NO_ACTION_INVALIDTARGET;
 
     return RETURN_NO_ACTION_OK;
 }
@@ -213,7 +216,7 @@ bool PlayerbotClassAI::NeedGroupBuff(uint32 groupBuffSpellId, uint32 singleBuffS
  * FindTargetAndHeal()
  * return bool Returns true if a unit in need of healing was found and healed. Returns false else.
  * Find a target based on healing orders (no orders = no healing), then try to heal it
- * using own class HealPlayer() method
+ * using own class HealPlayerOrPet() method
  */
 bool PlayerbotClassAI::FindTargetAndHeal()
 {
@@ -221,7 +224,7 @@ bool PlayerbotClassAI::FindTargetAndHeal()
 
     // Heal other players/bots first
     // Select a target based on orders and some context (pets are ignored because GetHealTarget() only works on players)
-    Player* targetToHeal;
+    Unit* targetToHeal;
     JOB_TYPE type = (m_ai.GetCombatOrder() & PlayerbotAI::ORDERS_NOT_MAIN_HEAL) ? JOB_ALL_NO_MT : JOB_ALL;
     // 1. bot has orders to focus on main tank
     if (m_ai.IsMainHealer())
@@ -233,7 +236,7 @@ bool PlayerbotClassAI::FindTargetAndHeal()
     if (!targetToHeal)
         targetToHeal = GetHealTarget(type);
 
-    if (m_ai.GetClassAI()->HealPlayer(targetToHeal) & RETURN_CONTINUE)
+    if (m_ai.GetClassAI()->HealPlayerOrPet(targetToHeal) & RETURN_CONTINUE)
         return true;
 
     return false;   
@@ -251,7 +254,7 @@ bool PlayerbotClassAI::FindTargetAndHeal()
  * Will need extensive re-write for co-operation amongst multiple healers. As it stands, multiple healers would all pick the same 'ideal'
  * healing target.
  */
-Player* PlayerbotClassAI::GetHealTarget(JOB_TYPE type, bool onlyPickFromSameGroup)
+Unit* PlayerbotClassAI::GetHealTarget(JOB_TYPE type, bool onlyPickFromSameGroup)
 {
     if (!m_bot.IsAlive() || m_bot.IsInDuel()) return nullptr;
 
@@ -275,15 +278,40 @@ Player* PlayerbotClassAI::GetHealTarget(JOB_TYPE type, bool onlyPickFromSameGrou
                 uiHealthPercentage = int(groupMember->GetMaxHealth() != 0 ? groupMember->GetHealth() * 100 / groupMember->GetMaxHealth() : 0);
                 targets.push_back(heal_priority(groupMember, uiHealthPercentage, job));
             }
+
+            // Can heal group member's pet.
+            Pet* pet = groupMember->GetPet();
+            if (pet)
+            {
+                uiHealthPercentage = int(pet->GetMaxHealth() != 0 ? pet->GetHealth() * 100 / pet->GetMaxHealth() : 0);
+                targets.push_back(heal_priority(pet, uiHealthPercentage, GetTargetJob(pet)));
+            }
         }
     }
     else
     {
         targets.push_back(heal_priority(&m_bot, m_bot.GetHealthPercent(), GetTargetJob(&m_bot)));
+
+        // Can heal he-self's pet.
+        Pet* pet = m_bot.GetPet();
+        if (pet)
+        {
+            uiHealthPercentage = int(pet->GetMaxHealth() != 0 ? pet->GetHealth() * 100 / pet->GetMaxHealth() : 0);
+            targets.push_back(heal_priority(pet, uiHealthPercentage, GetTargetJob(pet)));
+        }
+           
+        // Can heal master's pet.
         if (!m_master.IsInDuel())
         {
             uiHealthPercentage = int(m_master.GetMaxHealth() != 0 ? m_master.GetHealth() * 100 / m_master.GetMaxHealth() : 0);
             targets.push_back(heal_priority(&m_master, uiHealthPercentage, GetTargetJob(&m_master)));
+
+            Pet* pet = m_master.GetPet();
+            if (pet)
+            {
+                uiHealthPercentage = int(pet->GetMaxHealth() != 0 ? pet->GetHealth() * 100 / pet->GetMaxHealth() : 0);
+                targets.push_back(heal_priority(pet, uiHealthPercentage, GetTargetJob(pet)));
+            }
         }
     }
 
@@ -573,7 +601,7 @@ bool PlayerbotClassAI::FleeFromPointIfCan(uint32 radius, Unit* pTarget, float x0
  * Will need extensive re-write for co-operation amongst multiple healers. As it stands, multiple healers would all pick the same 'ideal'
  * healing target.
  */
-Player* PlayerbotClassAI::GetDispelTarget(DispelType dispelType, JOB_TYPE type, bool bMustBeOOC)
+Unit* PlayerbotClassAI::GetDispelTarget(DispelType dispelType, JOB_TYPE type, bool bMustBeOOC)
 {
     if (!m_bot.IsAlive() || m_bot.IsInDuel()) return nullptr;
     if (bMustBeOOC && m_bot.IsInCombat()) return nullptr;
@@ -644,7 +672,7 @@ Player* PlayerbotClassAI::GetResurrectionTarget(JOB_TYPE type, bool bMustBeOOC)
         std::sort(targets.begin(), targets.end());
 
         if (targets.size())
-            return targets.at(0).p;
+            return (Player*)targets.at(0).p;
     }
     else if (!m_master.IsAlive())
         return &m_master;
@@ -665,48 +693,53 @@ JOB_TYPE PlayerbotClassAI::GetBotJob(Player* target)
         return JOB_DPS;
 }
 
-JOB_TYPE PlayerbotClassAI::GetTargetJob(Player* target)
+JOB_TYPE PlayerbotClassAI::GetTargetJob(Unit* target)
 {
+    if (!target->IsPlayer())
+        return JOB_DPS;
+
+    Player* targetPlayer = (Player*)target;
+
     // is a bot
-    if (target->GetPlayerbotAI())
-        return GetBotJob(target);
+    if (targetPlayer->GetPlayerbotAI())
+        return GetBotJob(targetPlayer);
 
     // figure out what to do with human players - i.e. figure out if they're tank, DPS or healer
-    uint32 uSpec = target->GetSpec();
-    switch (target->getClass())
+    uint32 uSpec = targetPlayer->GetSpec();
+    switch (targetPlayer->getClass())
     {
         case CLASS_PALADIN:
             if (uSpec == PALADIN_SPEC_HOLY)
                 return JOB_HEAL;
             if (uSpec == PALADIN_SPEC_PROTECTION)
                 return JOB_TANK;
-            return (&m_master == target) ? JOB_MASTER : JOB_DPS;
+            return (&m_master == targetPlayer) ? JOB_MASTER : JOB_DPS;
         case CLASS_DRUID:
             if (uSpec == DRUID_SPEC_RESTORATION)
                 return JOB_HEAL;
             // Feral can be used for both Tank or DPS... play it safe and assume tank. If not... he best be good at threat management or he'll ravage the healer's mana
             else if (uSpec == DRUID_SPEC_FERAL)
                 return JOB_TANK;
-            return (&m_master == target) ? JOB_MASTER : JOB_DPS;
+            return (&m_master == targetPlayer) ? JOB_MASTER : JOB_DPS;
         case CLASS_PRIEST:
             // Since Discipline can be used for both healer or DPS assume DPS
             if (uSpec == PRIEST_SPEC_HOLY)
                 return JOB_HEAL;
-            return (&m_master == target) ? JOB_MASTER : JOB_DPS;
+            return (&m_master == targetPlayer) ? JOB_MASTER : JOB_DPS;
         case CLASS_SHAMAN:
             if (uSpec == SHAMAN_SPEC_RESTORATION)
                 return JOB_HEAL;
-            return (&m_master == target) ? JOB_MASTER : JOB_DPS;
+            return (&m_master == targetPlayer) ? JOB_MASTER : JOB_DPS;
         case CLASS_WARRIOR:
             if (uSpec == WARRIOR_SPEC_PROTECTION)
                 return JOB_TANK;
-            return (&m_master == target) ? JOB_MASTER : JOB_DPS;
+            return (&m_master == targetPlayer) ? JOB_MASTER : JOB_DPS;
         case CLASS_MAGE:
         case CLASS_WARLOCK:
         case CLASS_ROGUE:
         case CLASS_HUNTER:
         default:
-            return (&m_master == target) ? JOB_MASTER : JOB_DPS;
+            return (&m_master == targetPlayer) ? JOB_MASTER : JOB_DPS;
     }
 }
 

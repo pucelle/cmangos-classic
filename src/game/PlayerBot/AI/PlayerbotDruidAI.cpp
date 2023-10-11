@@ -215,7 +215,7 @@ CombatManeuverReturns PlayerbotDruidAI::DoNextCombatManeuverPVE(Unit* pTarget)
     Unit* newTarget = m_ai.FindAttacker((PlayerbotAI::ATTACKERINFOTYPE)(PlayerbotAI::AIT_VICTIMSELF | PlayerbotAI::AIT_HIGHESTTHREAT), &m_bot);
     if (newTarget && !(m_ai.GetCombatOrder() & PlayerbotAI::ORDERS_TANK) && !PlayerbotAI::IsNeutralized(newTarget)) // TODO: && party has a tank
     {
-        if (HealPlayer(&m_bot) == RETURN_CONTINUE)
+        if (HealPlayerOrPet(&m_bot) == RETURN_CONTINUE)
             return RETURN_CONTINUE;
 
         // Aggroed by an elite that came in melee range
@@ -358,8 +358,11 @@ CombatManeuverReturns PlayerbotDruidAI::_DoNextPVECombatManeuverSpellDPS(Unit* p
 {
     uint32 NATURE = (STARFIRE > 0 ? STARFIRE : WRATH);
 
+    // Star Fire is not valuable of it.
+    NATURE = WRATH;
+
     // Dispel curse/poison
-    if (m_ai.HasDispelOrder() && DispelPlayer() & RETURN_CONTINUE)
+    if (m_ai.HasDispelOrder() && DispelPlayerOrPet() & RETURN_CONTINUE)
         return RETURN_CONTINUE;
 
     // Combat resurrection (only tanks or master. If other targets are required, let master explicitly ask to)
@@ -369,20 +372,20 @@ CombatManeuverReturns PlayerbotDruidAI::_DoNextPVECombatManeuverSpellDPS(Unit* p
     // Face enemy, make sure you're attacking
     m_ai.FaceTarget(pTarget);
 
-    if (FAERIE_FIRE > 0 && m_ai.In_Reach(pTarget, FAERIE_FIRE) && !pTarget->HasAura(FAERIE_FIRE, EFFECT_INDEX_0) && CastSpell(FAERIE_FIRE, pTarget))
+    if (FAERIE_FIRE > 0 && m_ai.In_Reach(pTarget, FAERIE_FIRE) && !pTarget->HasAura(FAERIE_FIRE, EFFECT_INDEX_0) && CastSpell(FAERIE_FIRE, pTarget) == RETURN_CONTINUE)
         return RETURN_CONTINUE;
 
-    if (INSECT_SWARM > 0 && m_ai.In_Reach(pTarget, INSECT_SWARM) && !pTarget->HasAura(INSECT_SWARM, EFFECT_INDEX_0) && CastSpell(INSECT_SWARM, pTarget))
+    if (INSECT_SWARM > 0 && m_ai.In_Reach(pTarget, INSECT_SWARM) && !pTarget->HasAura(INSECT_SWARM, EFFECT_INDEX_0) && CastSpell(INSECT_SWARM, pTarget) == RETURN_CONTINUE)
         return RETURN_CONTINUE;
 
     // Healer? Don't waste more mana on DPS
-    if (m_ai.IsHealer())
+    if (m_ai.IsOnlyHealer())
         return RETURN_NO_ACTION_OK;
 
-    if (MOONFIRE > 0 && m_ai.In_Reach(pTarget, MOONFIRE) && !pTarget->HasAura(MOONFIRE, EFFECT_INDEX_0) && CastSpell(MOONFIRE, pTarget))
+    if (MOONFIRE > 0 && m_ai.In_Reach(pTarget, MOONFIRE) && !pTarget->HasAura(MOONFIRE, EFFECT_INDEX_0) && CastSpell(MOONFIRE, pTarget) == RETURN_CONTINUE)
         return RETURN_CONTINUE;
 
-    if (NATURE > 0 && CastSpell(NATURE, pTarget))
+    if (NATURE > 0 && CastSpell(NATURE, pTarget) == RETURN_CONTINUE)
         return RETURN_CONTINUE;
 
     if (m_ai.GetCombatStyle() == PlayerbotAI::COMBAT_MELEE)
@@ -396,23 +399,23 @@ CombatManeuverReturns PlayerbotDruidAI::_DoNextPVECombatManeuverSpellDPS(Unit* p
 CombatManeuverReturns PlayerbotDruidAI::_DoNextPVECombatManeuverHeal()
 {
     // Dispel curse/poison
-    if (m_ai.HasDispelOrder() && DispelPlayer() & RETURN_CONTINUE)
+    if (m_ai.HasDispelOrder() && DispelPlayerOrPet() & RETURN_CONTINUE)
         return RETURN_CONTINUE;
 
     // Combat resurrection (only tanks or master. If other targets are required, let master explicitly requests it)
     if (ResurrectPlayer(GetResurrectionTarget(JOB_TANK_MASTER, false)) & RETURN_CONTINUE)
         return RETURN_CONTINUE;
 
-    // Heal (try to pick a target by on common rules, than heal using each PlayerbotClassAI HealPlayer() method)
+    // Heal (try to pick a target by on common rules, than heal using each PlayerbotClassAI HealPlayerOrPet() method)
     if (FindTargetAndHeal())
         return RETURN_CONTINUE;
 
     return RETURN_NO_ACTION_UNKNOWN;
 }
 
-CombatManeuverReturns PlayerbotDruidAI::HealPlayer(Player* target)
+CombatManeuverReturns PlayerbotDruidAI::HealPlayerOrPet(Unit* target)
 {
-    CombatManeuverReturns r = PlayerbotClassAI::HealPlayer(target);
+    CombatManeuverReturns r = PlayerbotClassAI::HealPlayerOrPet(target);
     if (r != RETURN_NO_ACTION_OK)
         return r;
 
@@ -490,12 +493,12 @@ CombatManeuverReturns PlayerbotDruidAI::ResurrectPlayer(Player* target)
     return RETURN_NO_ACTION_ERROR; // not error per se - possibly just OOM
 }
 
-CombatManeuverReturns PlayerbotDruidAI::DispelPlayer(Player* /*target*/)
+CombatManeuverReturns PlayerbotDruidAI::DispelPlayerOrPet(Unit* /*target*/)
 {
     // Remove curse on group members
-    if (Player* cursedTarget = GetDispelTarget(DISPEL_CURSE))
+    if (Unit* cursedTarget = GetDispelTarget(DISPEL_CURSE))
     {
-        CombatManeuverReturns r = PlayerbotClassAI::DispelPlayer(cursedTarget);
+        CombatManeuverReturns r = PlayerbotClassAI::DispelPlayerOrPet(cursedTarget);
         if (r != RETURN_NO_ACTION_OK)
             return r;
 
@@ -504,9 +507,9 @@ CombatManeuverReturns PlayerbotDruidAI::DispelPlayer(Player* /*target*/)
     }
 
     // Remove poison on group members
-    if (Player* poisonedTarget = GetDispelTarget(DISPEL_POISON))
+    if (Unit* poisonedTarget = GetDispelTarget(DISPEL_POISON))
     {
-        CombatManeuverReturns r = PlayerbotClassAI::DispelPlayer(poisonedTarget);
+        CombatManeuverReturns r = PlayerbotClassAI::DispelPlayerOrPet(poisonedTarget);
         if (r != RETURN_NO_ACTION_OK)
             return r;
 
@@ -633,20 +636,20 @@ void PlayerbotDruidAI::DoNonCombatActions()
     // No auto-revive out of combat to preserve cooldown. Let master explicitly ask bot to cast Rebirth if needed
 
     // Dispel curse/poison
-    if (m_ai.HasDispelOrder() && DispelPlayer() & RETURN_CONTINUE)
+    if (m_ai.HasDispelOrder() && DispelPlayerOrPet() & RETURN_CONTINUE)
         return;
 
     // Heal
     if (m_ai.IsHealer())
     {
-        if (HealPlayer(GetHealTarget()) & RETURN_CONTINUE)
+        if (HealPlayerOrPet(GetHealTarget()) & RETURN_CONTINUE)
             return;// RETURN_CONTINUE;
     }
     else
     {
         // Is this desirable? Debatable.
         // TODO: In a group/raid with a healer you'd want this bot to focus on DPS (it's not specced/geared for healing either)
-        if (HealPlayer(&m_bot) & RETURN_CONTINUE)
+        if (HealPlayerOrPet(&m_bot) & RETURN_CONTINUE)
             return;// RETURN_CONTINUE;
     }
 
@@ -659,7 +662,9 @@ void PlayerbotDruidAI::DoNonCombatActions()
     }
     else if (Buff(&PlayerbotDruidAI::BuffHelper, MARK_OF_THE_WILD) & RETURN_CONTINUE)
         return;
-    if (Buff(&PlayerbotDruidAI::BuffHelper, THORNS, (m_bot.GetGroup() ? JOB_TANK | JOB_MAIN_TANK : JOB_ALL)) & RETURN_CONTINUE)
+
+    // The Throns Buff will always be applied to every group members.
+    if (Buff(&PlayerbotDruidAI::BuffHelper, THORNS, JOB_ALL) & RETURN_CONTINUE)
         return;
     if (OMEN_OF_CLARITY > 0 && !m_bot.HasAura(OMEN_OF_CLARITY) && CastSpell(OMEN_OF_CLARITY, &m_bot))
         return;
@@ -690,6 +695,8 @@ bool PlayerbotDruidAI::BuffHelper(PlayerbotAI* ai, uint32 spellId, Unit* target)
     if (!target)      return false;
 
     Pet* pet = target->GetPet();
+    pet = pet && pet->IsAlive() ? pet : nullptr;
+
     if (pet && !pet->HasAuraType(SPELL_AURA_MOD_UNATTACKABLE) && ai->Buff(spellId, pet, &(PlayerbotDruidAI::GoBuffForm)) == SPELL_CAST_OK)
         return true;
 

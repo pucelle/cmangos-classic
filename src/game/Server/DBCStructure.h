@@ -1070,6 +1070,10 @@ typedef std::set<ItemCategorySpellPair> ItemSpellCategorySet;
 typedef std::map<uint32, ItemSpellCategorySet > ItemSpellCategoryStore;
 typedef std::set<uint32> SpellCategorySet;
 typedef std::map<uint32, SpellCategorySet> SpellCategoryStore;
+
+// Caches profession spell's skill-line category.
+typedef std::map<uint32, int32> SpellSkillLineCategory;
+
 typedef std::set<uint32> PetFamilySpellsSet;
 typedef std::map<uint32, PetFamilySpellsSet > PetFamilySpellsStore;
 
