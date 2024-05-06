@@ -4952,7 +4952,7 @@ float Player::GetMeleeCritFromAgility() const
     if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED)
         && sWorld.getConfig(CONFIG_GAME_ENHANCE_CRIT_FROM_AGILITY_RATE) > 0.0f)
     {
-        valLevel60 = sWorld.getConfig(CONFIG_GAME_ENHANCE_CRIT_FROM_AGILITY_RATE);
+        valLevel60 = std::min(valLevel60, sWorld.getConfig(CONFIG_GAME_ENHANCE_CRIT_FROM_AGILITY_RATE));
     }
 
     float classrate = valLevel1 * float(60.0f - GetLevel()) / 59.0f + valLevel60 * float(GetLevel() - 1.0f) / 59.0f;
@@ -5004,7 +5004,7 @@ float Player::GetDodgeFromAgility(float amount) const
     if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED)
         && sWorld.getConfig(CONFIG_GAME_ENHANCE_DODGE_FROM_AGILITY_RATE) > 0.0f)
     {
-        valLevel60 = sWorld.getConfig(CONFIG_GAME_ENHANCE_DODGE_FROM_AGILITY_RATE);
+        valLevel60 = std::min(valLevel60, sWorld.getConfig(CONFIG_GAME_ENHANCE_DODGE_FROM_AGILITY_RATE));
     }
 
     float classrate = valLevel1 * float(60.0f - GetLevel()) / 59.0f + valLevel60 * float(GetLevel() - 1.0f) / 59.0f;
@@ -5052,8 +5052,8 @@ float Player::GetSpellCritFromIntellect() const
         float rateAtLevel60 = sWorld.getConfig(CONFIG_GAME_ENHANCE_SPELL_CRIT_FROM_INTELLECT_RATE);
         float rateAtLevel1 = rateAtLevel60 / 4.0f;
 
-        crit_ratio = rateAtLevel1 * float(60.0f - GetLevel()) / 59.0f
-            + rateAtLevel60 * float(GetLevel() - 1.0f) / 59.0f;
+        crit_ratio = std::min(crit_ratio, rateAtLevel1 * float(60.0f - GetLevel()) / 59.0f
+            + rateAtLevel60 * float(GetLevel() - 1.0f) / 59.0f);
     }
 
     return (crit_data[pclass].base + (GetStat(STAT_INTELLECT) / crit_ratio));
