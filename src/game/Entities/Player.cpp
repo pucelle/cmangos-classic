@@ -7433,9 +7433,9 @@ void Player::CastItemCombatSpell(Unit* Target, WeaponAttackType attType, bool sp
 
             // rate = 2
             // 0 -> * 2
-            // 5 -> * 1.4
+            // 10 -> * 1.4
             // 100 -> * 1
-            float factor = std::pow(sWorld.getConfig(CONFIG_GAME_ENHANCE_SPELL_TRIGGER_CHANCE_RATE), 5.0f / (chanceToCalcFactor + 5.0f));
+            float factor = std::pow(sWorld.getConfig(CONFIG_GAME_ENHANCE_SPELL_TRIGGER_CHANCE_RATE), 10.0f / (chanceToCalcFactor + 10.0f));
             chance *= factor;
         }
 
@@ -15357,21 +15357,21 @@ void Player::_LoadSpells(QueryResult* result)
                         willAdd = sWorld.getConfig(CONFIG_GAME_ENHANCE_ACCOUNT_SHARES_RIDING_SKILLS);
                     }
 
-                    // if (skillInfo->id == SKILL_ENGINEERING
-                    //     || skillInfo->id == SKILL_BLACKSMITHING
-                    //     || skillInfo->id == SKILL_LEATHERWORKING
-                    //     || skillInfo->id == SKILL_ALCHEMY
-                    //     || skillInfo->id == SKILL_HERBALISM
-                    //     || skillInfo->id == SKILL_MINING
-                    //     || skillInfo->id == SKILL_TAILORING
-                    //     || skillInfo->id == SKILL_ENCHANTING
-                    //     || skillInfo->id == SKILL_SKINNING
-                    //     || skillInfo->id == SKILL_FIRST_AID
-                    //     || skillInfo->id == SKILL_COOKING
-                    //     || skillInfo->id == SKILL_FISHING)
-                    // {
-                    //     willAdd = sWorld.getConfig(CONFIG_GAME_ENHANCE_ACCOUNT_SHARES_PROFESSION_SKILLS);
-                    // }
+                    if (skillInfo->id == SKILL_ENGINEERING
+                        || skillInfo->id == SKILL_BLACKSMITHING
+                        || skillInfo->id == SKILL_LEATHERWORKING
+                        || skillInfo->id == SKILL_ALCHEMY
+                        || skillInfo->id == SKILL_HERBALISM
+                        || skillInfo->id == SKILL_MINING
+                        || skillInfo->id == SKILL_TAILORING
+                        || skillInfo->id == SKILL_ENCHANTING
+                        || skillInfo->id == SKILL_SKINNING
+                        || skillInfo->id == SKILL_FIRST_AID
+                        || skillInfo->id == SKILL_COOKING
+                        || skillInfo->id == SKILL_FISHING)
+                    {
+                        willAdd = sWorld.getConfig(CONFIG_GAME_ENHANCE_ACCOUNT_SHARES_PROFESSION_SKILLS);
+                    }
                 }
 
                 if (willAdd)
