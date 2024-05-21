@@ -354,6 +354,40 @@ namespace MaNGOS
 
             xp_gain = target->GetModifierXpBasedOnDamageReceived(xp_gain);
 
+            // Modify xp gain by health rate.
+            if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED))
+            {
+                Map* map = target->GetMap();
+                float rate = 1.0f;
+
+                if (map->IsDungeon())
+                {
+                    DungeonMap* dungeon = (DungeonMap*)map;
+                    if (dungeon->GetMaxPlayers() == 5)
+                    {
+                        rate = sWorld.getConfig(CONFIG_GAME_ENHANCE_DUNGEON_5MAN_CREATURE_HEALTH_RATE);
+                    }
+                    else if (dungeon->GetMaxPlayers() == 10)
+                    {
+                        rate = sWorld.getConfig(CONFIG_GAME_ENHANCE_DUNGEON_10MAN_CREATURE_HEALTH_RATE);
+                    }
+                    else if (dungeon->GetMaxPlayers() == 15)
+                    {
+                        rate = sWorld.getConfig(CONFIG_GAME_ENHANCE_DUNGEON_15MAN_CREATURE_HEALTH_RATE);
+                    }
+                    else if (dungeon->GetMaxPlayers() == 20)
+                    {
+                        rate = sWorld.getConfig(CONFIG_GAME_ENHANCE_DUNGEON_20MAN_CREATURE_HEALTH_RATE);
+                    }
+                    else if (dungeon->GetMaxPlayers() == 40)
+                    {
+                        rate = sWorld.getConfig(CONFIG_GAME_ENHANCE_DUNGEON_40MAN_CREATURE_HEALTH_RATE);
+                    }
+                }
+
+                xp_gain *= rate;
+            }
+
             return (uint32)(std::nearbyint(xp_gain * sWorld.getConfig(CONFIG_FLOAT_RATE_XP_KILL)));
         }
 
