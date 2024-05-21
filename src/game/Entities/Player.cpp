@@ -15304,6 +15304,7 @@ void Player::_LoadSpells(QueryResult* result)
     {
         int guid = GetGUIDLow();
 
+        // Select spells from other characters.
         QueryResult* sharedSpells = CharacterDatabase.PQuery(
             "select spell, active, disabled"\
             "    from character_spell"\
@@ -15346,31 +15347,41 @@ void Player::_LoadSpells(QueryResult* result)
 
                 if (skillInfo->categoryId == SKILL_CATEGORY_PROFESSION || skillInfo->categoryId == SKILL_CATEGORY_SECONDARY)
                 {
-                    if (skillInfo->id == SKILL_RIDING_HORSE
-                        || skillInfo->id == SKILL_RIDING_WOLF
-                        || skillInfo->id == SKILL_RIDING_TIGER
-                        || skillInfo->id == SKILL_RIDING_RAM
-                        || skillInfo->id == SKILL_RIDING_RAPTOR
-                        || skillInfo->id == SKILL_RIDING_MECHANOSTRIDER
-                        || skillInfo->id == SKILL_RIDING_UNDEAD_HORSE)
+                    if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ACCOUNT_SHARES_RIDING_SKILLS))
                     {
-                        willAdd = sWorld.getConfig(CONFIG_GAME_ENHANCE_ACCOUNT_SHARES_RIDING_SKILLS);
+                        if (skillInfo->id == SKILL_RIDING_HORSE
+                            || skillInfo->id == SKILL_RIDING_WOLF
+                            || skillInfo->id == SKILL_RIDING_TIGER
+                            || skillInfo->id == SKILL_RIDING_RAM
+                            || skillInfo->id == SKILL_RIDING_RAPTOR
+                            || skillInfo->id == SKILL_RIDING_MECHANOSTRIDER
+                            || skillInfo->id == SKILL_RIDING_UNDEAD_HORSE)
+                        {
+                            SkillStatusMap::iterator itr = mSkillStatus.find(skillInfo->id);
+                            if (itr != mSkillStatus.end())
+                                willAdd = true;
+                        }
                     }
 
-                    if (skillInfo->id == SKILL_ENGINEERING
-                        || skillInfo->id == SKILL_BLACKSMITHING
-                        || skillInfo->id == SKILL_LEATHERWORKING
-                        || skillInfo->id == SKILL_ALCHEMY
-                        || skillInfo->id == SKILL_HERBALISM
-                        || skillInfo->id == SKILL_MINING
-                        || skillInfo->id == SKILL_TAILORING
-                        || skillInfo->id == SKILL_ENCHANTING
-                        || skillInfo->id == SKILL_SKINNING
-                        || skillInfo->id == SKILL_FIRST_AID
-                        || skillInfo->id == SKILL_COOKING
-                        || skillInfo->id == SKILL_FISHING)
+                    if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ACCOUNT_SHARES_PROFESSION_SKILLS))
                     {
-                        willAdd = sWorld.getConfig(CONFIG_GAME_ENHANCE_ACCOUNT_SHARES_PROFESSION_SKILLS);
+                        if (skillInfo->id == SKILL_ENGINEERING
+                            || skillInfo->id == SKILL_BLACKSMITHING
+                            || skillInfo->id == SKILL_LEATHERWORKING
+                            || skillInfo->id == SKILL_ALCHEMY
+                            || skillInfo->id == SKILL_HERBALISM
+                            || skillInfo->id == SKILL_MINING
+                            || skillInfo->id == SKILL_TAILORING
+                            || skillInfo->id == SKILL_ENCHANTING
+                            || skillInfo->id == SKILL_SKINNING
+                            || skillInfo->id == SKILL_FIRST_AID
+                            || skillInfo->id == SKILL_COOKING
+                            || skillInfo->id == SKILL_FISHING)
+                        {
+                            SkillStatusMap::iterator itr = mSkillStatus.find(skillInfo->id);
+                            if (itr != mSkillStatus.end())
+                                willAdd = true;
+                        }
                     }
                 }
 
