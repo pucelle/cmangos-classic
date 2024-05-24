@@ -20,7 +20,7 @@
 #include "Database/DatabaseEnv.h"
 #include "Server/WorldPacket.h"
 #include "Server/Opcodes.h"
-#include "Log.h"
+#include "Log/Log.h"
 #include "World/World.h"
 #include "Globals/ObjectMgr.h"
 #include "Spells/SpellMgr.h"
@@ -332,6 +332,9 @@ void Spell::EffectSchoolDMG(SpellEffectIndex eff_idx)
                     // converts each extra point of energy into additional damage
                     damage += int32(m_caster->GetPower(POWER_ENERGY) * m_spellInfo->DmgMultiplier[eff_idx]);
                     m_caster->SetPower(POWER_ENERGY, 0);
+                    // scaled AP bonus
+                    if (m_caster->GetTypeId() == TYPEID_PLAYER)
+                        damage += int32(m_caster->GetTotalAttackPowerValue(BASE_ATTACK) * 0.03f * m_caster->GetComboPoints());
                 }
                 break;
             }
@@ -350,25 +353,11 @@ void Spell::EffectSchoolDMG(SpellEffectIndex eff_idx)
             case SPELLFAMILY_HUNTER:
                 break;
             case SPELLFAMILY_PALADIN:
-            {
-                switch (m_spellInfo->Id)
-                {
-                    case 20467: // Judgement of Command
-                    case 20963:
-                    case 20964:
-                    case 20965:
-                    case 20966:
-                    case 27171:
-                        if (!unitTarget->IsStunned())
-                            damage /= 2;
-                        break;
-                }
                 break;
-            }
         }
 
         if (damage >= 0)
-            m_damagePerEffect[eff_idx] = CalculateSpellEffectDamage(unitTarget, damage, m_damageDoneMultiplier[eff_idx]);
+            m_damagePerEffect[eff_idx] = CalculateSpellEffectDamage(unitTarget, damage, m_damageDoneMultiplier[eff_idx], eff_idx);
     }
 }
 
@@ -933,13 +922,6 @@ void Spell::EffectDummy(SpellEffectIndex eff_idx)
                 {
                     if (m_CastItem)
                         m_caster->CastSpell(m_caster, 13166, TRIGGERED_OLD_TRIGGERED, m_CastItem);
-
-                    return;
-                }
-                case 23134:                                 // Goblin Bomb Dispenser
-                {
-                    if (m_CastItem)
-                        m_caster->CastSpell(m_caster, 13258, TRIGGERED_OLD_TRIGGERED, m_CastItem);
 
                     return;
                 }
@@ -1571,7 +1553,7 @@ void Spell::EffectDummy(SpellEffectIndex eff_idx)
                                         + unitTarget->SpellBaseDamageBonusTaken(GetSpellSchoolMask(m_spellInfo));
                     // Does Amplify Magic/Dampen Magic influence flametongue? If not, the above addition must be removed.
                     float weaponSpeed = float(m_CastItem->GetProto()->Delay) / IN_MILLISECONDS;
-                    bonusDamage = m_caster->SpellBonusWithCoeffs(m_spellInfo, 0, bonusDamage, 0, SPELL_DIRECT_DAMAGE, false); // apply spell coeff
+                    bonusDamage = m_caster->SpellBonusWithCoeffs(m_spellInfo, eff_idx, 0, bonusDamage, 0, SPELL_DIRECT_DAMAGE, false); // apply spell coeff
                     int32 totalDamage = (damage * 0.01 * weaponSpeed) + bonusDamage;
 
                     m_caster->CastCustomSpell(unitTarget, 10444, &totalDamage, nullptr, nullptr, TRIGGERED_OLD_TRIGGERED, m_CastItem);
@@ -1797,11 +1779,6 @@ void Spell::EffectTeleportUnits(SpellEffectIndex eff_idx)
     if (!unitTarget || unitTarget->IsTaxiFlying())
         return;
 
-    // Target dependend on TargetB, if there is none provided, decide dependend on A
-    uint32 targetType = m_spellInfo->EffectImplicitTargetB[eff_idx];
-    if (!targetType)
-        targetType = m_spellInfo->EffectImplicitTargetA[eff_idx];
-
     // If not exist data for dest location - return
     if (!(m_targets.m_targetMask & TARGET_FLAG_DEST_LOCATION))
     {
@@ -1902,8 +1879,8 @@ void Spell::EffectPowerDrain(SpellEffectIndex eff_idx)
     uint32 curPower = unitTarget->GetPower(powerType);
 
     // add spell damage bonus
-    damage = m_caster->SpellDamageBonusDone(unitTarget, m_spellSchoolMask, m_spellInfo, uint32(damage), SPELL_DIRECT_DAMAGE);
-    damage = unitTarget->SpellDamageBonusTaken(m_caster, m_spellSchoolMask, m_spellInfo, uint32(damage), SPELL_DIRECT_DAMAGE);
+    damage = m_caster->SpellDamageBonusDone(unitTarget, m_spellSchoolMask, m_spellInfo, eff_idx, uint32(damage), SPELL_DIRECT_DAMAGE);
+    damage = unitTarget->SpellDamageBonusTaken(m_caster, m_spellSchoolMask, m_spellInfo, eff_idx, uint32(damage), SPELL_DIRECT_DAMAGE);
 
     int32 new_damage;
     if (curPower < uint32(damage)) // damage should not be under zero at this point (checked above)
@@ -1964,7 +1941,7 @@ void Spell::EffectPowerBurn(SpellEffectIndex eff_idx)
         modOwner->ApplySpellMod(m_spellInfo->Id, SPELLMOD_MULTIPLE_VALUE, multiplier);
 
     new_damage = int32(new_damage * multiplier);
-    m_damagePerEffect[eff_idx] = CalculateSpellEffectDamage(unitTarget, new_damage, m_damageDoneMultiplier[eff_idx]);
+    m_damagePerEffect[eff_idx] = CalculateSpellEffectDamage(unitTarget, new_damage, m_damageDoneMultiplier[eff_idx], eff_idx);
 
     // should use here effect POWER_DRAIN because POWER_BURN is not implemented on client
     m_spellLog.AddLog(uint32(SPELL_EFFECT_POWER_DRAIN), unitTarget->GetObjectGuid(), new_damage, uint32(powertype), multiplier);
@@ -2019,8 +1996,9 @@ void Spell::EffectHeal(SpellEffectIndex eff_idx)
             addhealth += tickheal * tickcount;
         }
 
-        addhealth = caster->SpellHealingBonusDone(unitTarget, m_spellInfo, addhealth, HEAL);
-        addhealth = unitTarget->SpellHealingBonusTaken(caster, m_spellInfo, addhealth, HEAL);
+        addhealth = caster->SpellHealingBonusDone(unitTarget, m_spellInfo, eff_idx, addhealth, HEAL);
+        addhealth *= m_damageDoneMultiplier[eff_idx];
+        addhealth = unitTarget->SpellHealingBonusTaken(caster, m_spellInfo, eff_idx, addhealth, HEAL);
 
         m_healingPerEffect[eff_idx] = addhealth;
     }
@@ -2036,8 +2014,8 @@ void Spell::EffectHealMechanical(SpellEffectIndex eff_idx)
         if (!caster)
             return;
 
-        uint32 addhealth = caster->SpellHealingBonusDone(unitTarget, m_spellInfo, damage, HEAL);
-        addhealth = unitTarget->SpellHealingBonusTaken(caster, m_spellInfo, addhealth, HEAL);
+        uint32 addhealth = caster->SpellHealingBonusDone(unitTarget, m_spellInfo, eff_idx, damage, HEAL);
+        addhealth = unitTarget->SpellHealingBonusTaken(caster, m_spellInfo, eff_idx, addhealth, HEAL);
 
         m_healingPerEffect[eff_idx] = addhealth;
     }
@@ -2068,7 +2046,7 @@ void Spell::EffectHealthLeech(SpellEffectIndex eff_idx)
     uint32 heal = uint32(damage * multiplier);
     if (m_caster->IsAlive())
     {
-        heal = m_caster->SpellHealingBonusTaken(m_caster, m_spellInfo, heal, HEAL);
+        heal = m_caster->SpellHealingBonusTaken(m_caster, m_spellInfo, eff_idx, heal, HEAL);
 
         // TODO: at hit need to schedule a (delayed) heal effect execution on caster
         // order of packets for death coil - start, go, delay, dmg log, delay, heal log
@@ -3372,7 +3350,7 @@ void Spell::EffectTameCreature(SpellEffectIndex /*eff_idx*/)
     if (plr->IsPvP())
         pet->SetPvP(true);
 
-    pet->GetCharmInfo()->SetPetNumber(sObjectMgr.GeneratePetNumber(), (m_caster->GetTypeId() == TYPEID_PLAYER));
+    pet->GetCharmInfo()->SetPetNumber(pet->GetObjectGuid().GetEntry(), (m_caster->GetTypeId() == TYPEID_PLAYER));
 
     uint32 level = creatureTarget->GetLevel();
     pet->SetCanModifyStats(true);
@@ -3619,7 +3597,7 @@ void Spell::EffectTaunt(SpellEffectIndex eff_idx)
     if (unitTarget->CanHaveThreatList())
     {
         float addedThreat = unitTarget->getThreatManager().GetHighestThreat() - unitTarget->getThreatManager().getThreat(m_caster);
-        unitTarget->getThreatManager().addThreatDirectly(m_caster, addedThreat);
+        unitTarget->getThreatManager().addThreatDirectly(m_caster, addedThreat, false);
         unitTarget->getThreatManager().setCurrentVictimByTarget(m_caster); // force changes the target to caster of taunt
     }
     // Units without threat lists but with AI are susceptible to attack target interference by taunt effect:
@@ -3750,7 +3728,7 @@ void Spell::EffectWeaponDmg(SpellEffectIndex eff_idx)
     bonus = int32(bonus * totalDamagePercentMod);
 
     // prevent negative damage
-    m_damagePerEffect[eff_idx] = CalculateSpellEffectDamage(unitTarget, bonus, m_damageDoneMultiplier[eff_idx]);
+    m_damagePerEffect[eff_idx] = CalculateSpellEffectDamage(unitTarget, bonus, m_damageDoneMultiplier[eff_idx], eff_idx);
 
     // Mangle (Cat): CP
     if (m_spellInfo->IsFitToFamily(SPELLFAMILY_DRUID, uint64(0x0000040000000000)))
@@ -3767,14 +3745,6 @@ void Spell::EffectThreat(SpellEffectIndex /*eff_idx*/)
 
     if (!unitTarget->CanHaveThreatList())
         return;
-
-    if (!m_caster->IsInCombat() || !unitTarget->IsInCombat())
-    {
-        if (unitTarget->AI())
-            unitTarget->AI()->AttackStart(m_caster);
-        else
-            unitTarget->EngageInCombatWith(m_caster);
-    }
 
     unitTarget->AddThreat(m_caster, float(damage), false, GetSpellSchoolMask(m_spellInfo), m_spellInfo);
     m_spellLog.AddLog(uint32(SPELL_EFFECT_THREAT), unitTarget->GetObjectGuid());
@@ -4177,6 +4147,14 @@ void Spell::EffectScriptEffect(SpellEffectIndex eff_idx)
                     m_caster->CastSpell(unitTarget, spells[urand(0, 1)], TRIGGERED_OLD_TRIGGERED);
                     return;
                 }
+                case 26264:                                 // Despawn
+                {
+                    if (!unitTarget || unitTarget->GetTypeId() != TYPEID_UNIT)
+                        return;
+                    Creature* creatureTarget = (Creature*)unitTarget;
+                    creatureTarget->ForcedDespawn();
+                    return;
+                }
                 case 26465:                                 // Mercurial Shield - need remove one 26464 Mercurial Shield aura
                     unitTarget->RemoveAuraHolderFromStack(26464);
                     return;
@@ -4374,27 +4352,6 @@ void Spell::EffectScriptEffect(SpellEffectIndex eff_idx)
                     // Removes snares and roots.
                     unitTarget->RemoveAurasAtMechanicImmunity(IMMUNE_TO_ROOT_AND_SNARE_MASK, 30918, true);
                     break;
-                }
-            }
-            break;
-        }
-        case SPELLFAMILY_WARLOCK:
-        {
-            switch (m_spellInfo->Id)
-            {
-                case  6201:                                 // Healthstone creating spells
-                case  6202:
-                case  5699:
-                case 11729:
-                case 11730:
-                {
-                    if (!unitTarget)
-                        return;
-
-                    uint32 itemType = GetUsableHealthStoneItemType(unitTarget);
-                    if (itemType)
-                        DoCreateItem(eff_idx, itemType);
-                    return;
                 }
             }
             break;
@@ -5770,6 +5727,9 @@ void Spell::EffectSpiritHeal(SpellEffectIndex /*eff_idx*/)
 
     if (Player* player = static_cast<Player*>(unitTarget))
     {
+#ifdef ENABLE_PLAYERBOTS
+        player->RemoveAurasDueToSpell(2584);
+#endif
         player->ResurrectPlayer(1.0f);
         player->SpawnCorpseBones();
 
@@ -5879,51 +5839,4 @@ void Spell::EffectTeleportGraveyard(SpellEffectIndex eff_idx)
 
     Player* player = static_cast<Player*>(unitTarget);
     player->RepopAtGraveyard();
-}
-
-uint32 Spell::GetUsableHealthStoneItemType(Unit* target)
-{
-    if (!target || target->GetTypeId() != TYPEID_PLAYER)
-        return 0;
-
-    uint32 itemtype = 0;
-    uint32 rank = 0;
-    Unit::AuraList const& mDummyAuras = target->GetAurasByType(SPELL_AURA_DUMMY);
-    for (auto mDummyAura : mDummyAuras)
-    {
-        if (mDummyAura->GetId() == 18692)
-        {
-            rank = 1;
-            break;
-        }
-        if (mDummyAura->GetId() == 18693)
-        {
-            rank = 2;
-            break;
-        }
-    }
-
-    static uint32 const itypes[6][3] =
-    {
-        { 5512, 19004, 19005},              // Minor Healthstone
-        { 5511, 19006, 19007},              // Lesser Healthstone
-        { 5509, 19008, 19009},              // Healthstone
-        { 5510, 19010, 19011},              // Greater Healthstone
-        { 9421, 19012, 19013},              // Major Healthstone
-    };
-
-    switch (m_spellInfo->Id)
-    {
-        case  6201:
-            itemtype = itypes[0][rank]; break; // Minor Healthstone
-        case  6202:
-            itemtype = itypes[1][rank]; break; // Lesser Healthstone
-        case  5699:
-            itemtype = itypes[2][rank]; break; // Healthstone
-        case 11729:
-            itemtype = itypes[3][rank]; break; // Greater Healthstone
-        case 11730:
-            itemtype = itypes[4][rank]; break; // Major Healthstone
-    }
-    return itemtype;
 }

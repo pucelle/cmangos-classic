@@ -468,7 +468,7 @@ class Aura
         // more limited that used in future versions (spell_affect table based only), so need be careful with backporting uses
         ClassFamilyMask GetAuraSpellClassMask() const;
         bool isAffectedOnSpell(SpellEntry const* spell) const;
-        bool CanProcFrom(SpellEntry const* spell, uint32 EventProcEx, uint32 procEx, bool active, bool useClassMask) const;
+        bool CanProcFrom(SpellEntry const* spell, uint32 EventProcEx, uint32 procEx, bool damaging, bool absorbing, bool useClassMask) const;
 
         SpellAuraHolder* GetHolder() { return m_spellAuraHolder; }
         SpellAuraHolder const* GetHolder() const { return m_spellAuraHolder; }
@@ -493,14 +493,14 @@ class Aura
         ScriptStorage* GetScriptStorage() { return m_storage; }
         // hooks
         void OnAuraInit();
-        int32 OnAuraValueCalculate(Unit* caster, int32 currentValue);
+        int32 OnAuraValueCalculate(Unit* caster, int32 currentValue, Item* castItem);
         void OnDamageCalculate(Unit* victim, Unit* attacker, int32& advertisedBenefit, float& totalMod);
-        void OnCritChanceCalculate(Unit const* victim, float& chance);
+        void OnCritChanceCalculate(Unit const* victim, float& chance, SpellEntry const* spellInfo);
         void OnApply(bool apply);
         void OnAfterApply(bool apply);
         bool OnCheckProc(ProcExecutionData& data);
         SpellAuraProcResult OnProc(ProcExecutionData& data);
-        void OnAbsorb(int32& currentAbsorb, int32& remainingDamage, uint32& reflectedSpellId, int32& reflectDamage, bool& preventedDeath, bool& dropCharge);
+        void OnAbsorb(int32& currentAbsorb, int32& remainingDamage, uint32& reflectedSpellId, int32& reflectDamage, bool& preventedDeath, bool& dropCharge, DamageEffectType damageType);
         void OnManaAbsorb(int32& currentAbsorb);
         void OnAuraDeathPrevention(int32& remainingDamage);
         void OnPeriodicTrigger(PeriodicTriggerData& data);
@@ -563,6 +563,8 @@ class AreaAura : public Aura
     public:
         AreaAura(SpellEntry const* spellproto, SpellEffectIndex eff, int32 const* currentDamage, int32 const* currentBasePoints, SpellAuraHolder* holder, Unit* target, Unit* caster = nullptr, Item* castItem = nullptr, uint32 originalRankSpellId = 0);
         virtual ~AreaAura();
+
+        bool OnAreaAuraCheckTarget(Unit* target) const;
     protected:
         void Update(uint32 diff) override;
     private:

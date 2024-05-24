@@ -25,7 +25,7 @@
 #include "Database/DatabaseImpl.h"
 #include "Server/WorldPacket.h"
 #include "Server/Opcodes.h"
-#include "Log.h"
+#include "Log/Log.h"
 #include "Entities/Player.h"
 #include "World/World.h"
 #include "Guilds/GuildMgr.h"
@@ -757,7 +757,7 @@ void WorldSession::HandleAreaTriggerOpcode(WorldPacket& recv_data)
         {
             std::string message = at->status_failed_text;
             sObjectMgr.GetAreaTriggerLocales(at->entry, GetSessionDbLocaleIndex(), &message);
-            SendAreaTriggerMessage(message.data());
+            SendAreaTriggerMessage("%s", message.data());
         }
         return;
     }
@@ -1058,14 +1058,14 @@ void WorldSession::HandleWhoisOpcode(WorldPacket& recv_data)
 
     uint32 accid = plr->GetSession()->GetAccountId();
 
-    QueryResult* result = LoginDatabase.PQuery("SELECT username,email,ip FROM account a JOIN account_logons b ON(a.id=b.accountId) WHERE a.id=%u ORDER BY loginTime DESC LIMIT 1", accid);
-    if (!result)
+    auto queryResult = LoginDatabase.PQuery("SELECT username,email,ip FROM account a JOIN account_logons b ON(a.id=b.accountId) WHERE a.id=%u ORDER BY loginTime DESC LIMIT 1", accid);
+    if (!queryResult)
     {
         SendNotification(LANG_ACCOUNT_FOR_PLAYER_NOT_FOUND, charname.c_str());
         return;
     }
 
-    Field* fields = result->Fetch();
+    Field* fields = queryResult->Fetch();
     std::string acc = fields[0].GetCppString();
     if (acc.empty())
         acc = "Unknown";
@@ -1081,8 +1081,6 @@ void WorldSession::HandleWhoisOpcode(WorldPacket& recv_data)
     WorldPacket data(SMSG_WHOIS, msg.size() + 1);
     data << msg;
     _player->GetSession()->SendPacket(data);
-
-    delete result;
 
     DEBUG_LOG("Received whois command from player %s for character %s", GetPlayer()->GetName(), charname.c_str());
 }
@@ -1125,39 +1123,10 @@ void WorldSession::HandleResetInstancesOpcode(WorldPacket& /*recv_data*/)
         _player->ResetInstances(INSTANCE_RESET_ALL);
 }
 
-void WorldSession::HandleCancelMountAuraOpcode(WorldPacket& /*recv_data*/)
-{
-    DEBUG_LOG("WORLD: Received opcode  CMSG_CANCEL_MOUNT_AURA");
-
-    // If player is not mounted, so go out :)
-    if (!_player->IsMounted())                              // not blizz like; no any messages on blizz
-    {
-        ChatHandler(this).SendSysMessage(LANG_CHAR_NON_MOUNTED);
-        return;
-    }
-
-    if (_player->IsTaxiFlying())                            // not blizz like; no any messages on blizz
-    {
-        ChatHandler(this).SendSysMessage(LANG_YOU_IN_FLIGHT);
-        return;
-    }
-
-    _player->RemoveSpellsCausingAura(SPELL_AURA_MOUNTED);
-    _player->Unmount();
-}
-
 void WorldSession::HandleRequestPetInfoOpcode(WorldPacket& /*recv_data */)
 {
     if (_player->GetPet())
         _player->PetSpellInitialize();
     else if (_player->GetCharm())
         _player->CharmSpellInitialize();
-}
-
-void WorldSession::HandleSetTaxiBenchmarkOpcode(WorldPacket& recv_data)
-{
-    uint8 mode;
-    recv_data >> mode;
-
-    DEBUG_LOG("Client used \"/timetest %d\" command", mode);
 }

@@ -17,7 +17,7 @@
  */
 
 #include "Common.h"
-#include "Log.h"
+#include "Log/Log.h"
 #include "Globals/ObjectMgr.h"
 #include "Spells/SpellMgr.h"
 #include "Entities/Player.h"
@@ -137,8 +137,8 @@ pAuraProcHandler AuraProcHandler[TOTAL_AURAS] =
     &Unit::HandleNULLProc,                                  // 104 SPELL_AURA_WATER_WALK
     &Unit::HandleNULLProc,                                  // 105 SPELL_AURA_FEATHER_FALL
     &Unit::HandleNULLProc,                                  // 106 SPELL_AURA_HOVER
-    &Unit::HandleNULLProc,                                  // 107 SPELL_AURA_ADD_FLAT_MODIFIER
-    &Unit::HandleNULLProc,                                  // 108 SPELL_AURA_ADD_PCT_MODIFIER
+    &Unit::HandleSpellModProc,                              // 107 SPELL_AURA_ADD_FLAT_MODIFIER
+    &Unit::HandleSpellModProc,                              // 108 SPELL_AURA_ADD_PCT_MODIFIER
     &Unit::HandleNULLProc,                                  // 109 SPELL_AURA_ADD_TARGET_TRIGGER
     &Unit::HandleNULLProc,                                  // 110 SPELL_AURA_MOD_POWER_REGEN_PERCENT
     &Unit::HandleNULLProc,                                  // 111 SPELL_AURA_ADD_CASTER_HIT_TRIGGER
@@ -390,7 +390,7 @@ void Unit::ProcDamageAndSpell(ProcSystemArguments&& data)
 }
 
 ProcExecutionData::ProcExecutionData(ProcSystemArguments& data, bool isVictim) : attacker(data.attacker), victim(data.victim),
-    isVictim(isVictim), procExtra(data.procExtra), attType(data.attType), damage(data.damage), spellInfo(data.spellInfo), spell(data.spell), healthGain(data.healthGain), isHeal(data.isHeal),
+    isVictim(isVictim), procExtra(data.procExtra), attType(data.attType), damage(data.damage), absorb(data.absorb), spellInfo(data.spellInfo), spell(data.spell), healthGain(data.healthGain), isHeal(data.isHeal),
     triggeredByAura(nullptr), cooldown(0), triggeredSpellId(0), procOnce(false), triggerTarget(nullptr)
 {
     if (isVictim)
@@ -495,10 +495,10 @@ void Unit::ProcDamageAndSpellFor(ProcSystemArguments& argData, bool isVictim)
                             continue;
                     }
                     // don't check dbc FamilyFlags if schoolMask exists
-                    else if (!execData.triggeredByAura->CanProcFrom(execData.spellInfo, spellProcEvent->procEx, execData.procExtra, execData.damage != 0, !spellProcEvent->schoolMask))
+                    else if (!execData.triggeredByAura->CanProcFrom(execData.spellInfo, spellProcEvent->procEx, execData.procExtra, execData.damage != 0, execData.absorb != 0, !spellProcEvent->schoolMask))
                         continue;
                 }
-                else if (!execData.triggeredByAura->CanProcFrom(execData.spellInfo, PROC_EX_NONE, execData.procExtra, execData.damage != 0, true))
+                else if (!execData.triggeredByAura->CanProcFrom(execData.spellInfo, PROC_EX_NONE, execData.procExtra, execData.damage != 0, execData.absorb != 0, true))
                     continue;
             }
 
@@ -772,8 +772,8 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(ProcExecutionData& data)
                     if (!spellInfo || spellInfo->DmgClass != SPELL_DAMAGE_CLASS_MAGIC)
                         return SPELL_AURA_PROC_FAILED;
 
-                    // return damage % to attacker but < 50% own total health
-                    basepoints[0] = triggerAmount * int32(damage) / 100;
+                    // return absorb included damage % to attacker but < 50% own total health
+                    basepoints[0] = triggerAmount * int32(data.damage + data.absorb) / 100;
                     if (basepoints[0] > (int32)GetMaxHealth() / 2)
                         basepoints[0] = (int32)GetMaxHealth() / 2;
 
@@ -1548,7 +1548,7 @@ SpellAuraProcResult Unit::HandleProcTriggerDamageAuraProc(ProcExecutionData& dat
         triggeredByAura->GetHolder()->SetProcCooldown(std::chrono::seconds(cooldown), GetMap()->GetCurrentClockTime());
 
     SpellNonMeleeDamage spellDamageInfo(this, victim, spellInfo->Id, SpellSchools(spellInfo->School));
-    CalculateSpellDamage(&spellDamageInfo, triggeredByAura->GetModifier()->m_amount, spellInfo);
+    CalculateSpellDamage(&spellDamageInfo, triggeredByAura->GetModifier()->m_amount, spellInfo, triggeredByAura->GetEffIndex());
     spellDamageInfo.target->CalculateAbsorbResistBlock(this, &spellDamageInfo, spellInfo);
     Unit::DealDamageMods(this, spellDamageInfo.target, spellDamageInfo.damage, &spellDamageInfo.absorb, SPELL_DIRECT_DAMAGE);
     SendSpellNonMeleeDamageLog(&spellDamageInfo);
@@ -1703,4 +1703,10 @@ SpellAuraProcResult Unit::HandleInvisibilityAuraProc(ProcExecutionData& data)
 
     RemoveAurasDueToSpell(triggeredByAura->GetId());
     return SPELL_AURA_PROC_OK;
+}
+
+SpellAuraProcResult Unit::HandleSpellModProc(ProcExecutionData& data)
+{
+    // one day if figured out - remove charges through proc system but currently not reliable enough for edge cases
+    return SPELL_AURA_PROC_CANT_TRIGGER;
 }

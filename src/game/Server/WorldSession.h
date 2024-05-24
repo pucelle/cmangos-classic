@@ -237,22 +237,21 @@ class WorldSession
         char const* GetPlayerName() const;
         std::string GetChatType(uint32 type);
         void SetSecurity(AccountTypes security) { _security = security; }
-#ifdef BUILD_PLAYERBOT
+#if defined(BUILD_DEPRECATED_PLAYERBOT) || defined(ENABLE_PLAYERBOTS)
         // Players connected without socket are bot
-        const std::string GetRemoteAddress() const { return m_Socket ? m_Socket->GetRemoteAddress() : "disconnected/bot"; }
+        const std::string GetRemoteAddress() const { return m_socket ? m_socket->GetRemoteAddress() : "disconnected/bot"; }
 #else
-        const std::string GetRemoteAddress() const { return m_Socket ? m_Socket->GetRemoteAddress() : "disconnected"; }
+        const std::string GetRemoteAddress() const { return m_socket ? m_socket->GetRemoteAddress() : "disconnected"; }
 #endif
         const std::string& GetLocalAddress() const { return m_localAddress; }
 
         void SetPlayer(Player* plr, uint32 playerGuid);
 
         void InitializeAnticheat(const BigNumber& K);
-        void AssignAnticheat();
-        void SetDelayedAnticheat(std::unique_ptr<SessionAnticheatInterface>&& anticheat);
+        void AssignAnticheat(std::unique_ptr<SessionAnticheatInterface>&& anticheat);
         SessionAnticheatInterface* GetAnticheat() const { return m_anticheat.get(); }
 
-#ifdef BUILD_PLAYERBOT
+#if defined(BUILD_DEPRECATED_PLAYERBOT) || defined(ENABLE_PLAYERBOTS)
         void SetNoAnticheat();
 #endif
 
@@ -270,6 +269,8 @@ class WorldSession
             m_kickSession = kickSession;
         }
 
+        void AfkStateChange(bool state);
+
         /// Is logout cooldown expired?
         bool ShouldLogOut(time_t currTime) const
         {
@@ -279,6 +280,11 @@ class WorldSession
         bool ShouldDisconnect(time_t currTime)
         {
             return (_logoutTime > 0 && currTime >= _logoutTime + 60);
+        }
+
+        bool ShouldAfkDisconnect(time_t currTime) const
+        {
+            return (m_afkTime > 0 && currTime >= m_afkTime + 15 * MINUTE);
         }
 
         void LogoutPlayer();
@@ -315,7 +321,7 @@ class WorldSession
 
         void SendTradeStatus(const TradeStatusInfo& status) const;
         void SendUpdateTrade(bool trader_state = true) const;
-        void SendCancelTrade() const;
+        void SendCancelTrade(TradeStatus status) const;
 
         void SendPetitionQueryOpcode(ObjectGuid petitionguid) const;
 
@@ -330,7 +336,7 @@ class WorldSession
         void SetAccountData(AccountDataType type, time_t time_, const std::string& data);
         void SendAccountDataTimes();
         void LoadGlobalAccountData();
-        void LoadAccountData(QueryResult* result, uint32 mask);
+        void LoadAccountData(std::unique_ptr<QueryResult> queryResult, uint32 mask);
         void LoadTutorialsData();
         void SendTutorialsData();
         void SaveTutorialsData();
@@ -408,6 +414,9 @@ class WorldSession
         // Misc
         void SendKnockBack(Unit* who, float angle, float horizontalSpeed, float verticalSpeed);
         void SendPlaySpellVisual(ObjectGuid guid, uint32 spellArtKit) const;
+#ifdef ENABLE_PLAYERBOTS
+        void SendTeleportToObservers(float x, float y, float z, float orientation);
+#endif
 
         void SendAuthOk() const;
         void SendAuthQueued() const;
@@ -796,6 +805,10 @@ class WorldSession
         std::deque<uint32> GetOutOpcodeHistory();
         std::deque<uint32> GetIncOpcodeHistory();
 
+#ifdef ENABLE_PLAYERBOTS
+        void HandleBotPackets();
+#endif
+
         Messager<WorldSession>& GetMessager() { return m_messager; }
 
         void SetPacketLogging(bool state);
@@ -816,7 +829,7 @@ class WorldSession
 
         uint32 m_GUIDLow;                                   // set logged or recently logout player (while m_playerRecentlyLogout set)
         Player* _player;
-        std::shared_ptr<WorldSocket> m_Socket;              // socket pointer is owned by the network thread which created it
+        std::shared_ptr<WorldSocket> m_socket;              // socket pointer is owned by the network thread which created it
         std::shared_ptr<WorldSocket> m_requestSocket;       // a new socket for this session is requested (double connection)
         std::string m_localAddress;
         WorldSessionState m_sessionState;                   // this session state
@@ -833,11 +846,11 @@ class WorldSession
         uint32 m_accountMaxLevel;
         uint32 m_orderCounter;
         uint32 m_lastAnticheatUpdate;
-        std::unique_ptr<SessionAnticheatInterface> m_delayedAnticheat;
         std::unique_ptr<SessionAnticheatInterface> m_anticheat;
 
         time_t _logoutTime;                                 // when logout will be processed after a logout request
         time_t m_kickTime;
+        time_t m_afkTime;
         bool m_playerSave;                                  // should we have to save the player after logout request
         bool m_inQueue;                                     // session wait in auth.queue
         bool m_playerLoading;                               // code processed in LoginPlayer

@@ -17,7 +17,7 @@
  */
 
 #include "Common.h"
-#include "Log.h"
+#include "Log/Log.h"
 #include "Server/WorldPacket.h"
 #include "Server/WorldSession.h"
 #include "Server/Opcodes.h"
@@ -31,7 +31,7 @@
 #include "Groups/Group.h"
 #include "Tools/Formulas.h"
 
-#ifdef BUILD_PLAYERBOT
+#ifdef BUILD_DEPRECATED_PLAYERBOT
 #include "PlayerBot/Base/PlayerbotAI.h"
 #endif
 
@@ -589,12 +589,12 @@ void WorldSession::HandlePushQuestToParty(WorldPacket& recvPacket)
                     continue;
                 }
 
-#ifndef BUILD_PLAYERBOT
+#ifndef BUILD_DEPRECATED_PLAYERBOT
                 pPlayer->GetPlayerMenu()->SendQuestGiverQuestDetails(pQuest, _player->GetObjectGuid(), true);
 #endif
                 pPlayer->SetDividerGuid(_player->GetObjectGuid());
 
-#ifdef BUILD_PLAYERBOT
+#ifdef BUILD_DEPRECATED_PLAYERBOT
                 if (pPlayer->GetPlayerbotAI())
                     pPlayer->GetPlayerbotAI()->AcceptQuest(pQuest, _player);
                 else
@@ -721,13 +721,6 @@ uint32 WorldSession::getDialogStatus(const Player* pPlayer, const Object* questg
     }
 
     return dialogStatus;
-}
-
-void WorldSession::HandleQuestgiverStatusMultipleQuery(WorldPacket& /*recvPacket*/)
-{
-    DEBUG_LOG("WORLD: Received opcode CMSG_QUESTGIVER_STATUS_MULTIPLE_QUERY");
-
-    _player->SendQuestGiverStatusMultiple();
 }
 
 bool WorldSession::CanInteractWithQuestGiver(ObjectGuid guid, char const* descr) const

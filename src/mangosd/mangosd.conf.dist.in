@@ -1,9 +1,19 @@
 #####################################
-# MaNGOS Configuration file         #
+# MaNGOS Configuration file         
+# 
+# 	To overwrite configuration fields with environment variables
+# 	use the following pattern to generate environment variable names:
+#
+# 		For Rate.Health:
+# 			export Mangosd_Rate_Health=1.2
+#
+# 		For DataDir:
+# 			export Mangosd_DataDir=/tmp
+#
 #####################################
 
 [MangosdConf]
-ConfVersion=2022012301
+ConfVersion=2024020101
 
 ###################################################################################################################
 # CONNECTIONS AND DIRECTORIES
@@ -646,6 +656,11 @@ LogColors = ""
 #        Default: 1800000 (miliseconds, i.e 30 minutes)
 #                 0 (instance maps are kept in memory until they are reset)
 #
+#    Instance.DisableRelocate
+#        Disables relocation of player upon entering instance after 15 minutes or instance reset
+#        Default: 0 - false - relocates player after being logged out in instance for more than 15 minutes or instance reset
+#                 1 - true - location is kept
+#
 #    Quests.LowLevelHideDiff
 #        Quest level difference to hide for player low level quests:
 #        if player_level > quest_level + LowLevelQuestsHideDiff then quest "!" mark not show for quest giver
@@ -812,6 +827,7 @@ Instance.IgnoreRaid = 0
 Instance.StrictCombatLockdown = 0
 Instance.ResetTimeHour = 4
 Instance.UnloadDelay = 1800000
+Instance.DisableRelocate = 0
 Quests.LowLevelHideDiff = 5
 Quests.HighLevelHideDiff = 7
 Quests.IgnoreRaid = 0
@@ -921,7 +937,7 @@ TalentsInspecting = 1
 #
 #    CreatureFamilyAssistanceRadius
 #        Radius which creature will use to call assistance without moving
-#        Default: 10
+#        Default: 5
 #                 0   - off
 #
 #    CreatureFamilyAssistanceDelay
@@ -934,6 +950,10 @@ TalentsInspecting = 1
 #
 #    CreatureCheckForHelpAggroDelay
 #        Time during which at combat start check for help is disabled
+#        Default: 2000 (2 seconds)
+#
+#    CreatureLinkingAggroDelay
+#        Time after which spawn_group and linking aggro is triggered
 #        Default: 2000 (2 seconds)
 #
 #    CreatureFamilyFleeDelay
@@ -1020,7 +1040,7 @@ Rate.Creature.Aggro = 1
 CreatureRespawnAggroDelay = 5000
 LeashRadius = 30
 CreatureFamilyFleeAssistanceRadius = 30
-CreatureFamilyAssistanceRadius = 10
+CreatureFamilyAssistanceRadius = 5
 CreatureFamilyAssistanceDelay = 1500
 CreatureCheckForHelpRadius = 5
 CreatureCheckForHelpAggroDelay = 2000

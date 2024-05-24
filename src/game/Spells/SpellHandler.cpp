@@ -22,7 +22,7 @@
 #include "Server/WorldSession.h"
 #include "Globals/ObjectMgr.h"
 #include "Spells/SpellMgr.h"
-#include "Log.h"
+#include "Log/Log.h"
 #include "Server/Opcodes.h"
 #include "Spells/Spell.h"
 #include "AI/ScriptDevAI/ScriptDevAIMgr.h"
@@ -189,6 +189,12 @@ void WorldSession::HandleOpenItemOpcode(WorldPacket& recvPacket)
         return;
     }
 
+    if (proto->RequiredLevel > pUser->GetLevel())
+    {
+        pUser->SendEquipError(EQUIP_ERR_LOOT_CANT_LOOT_THAT_NOW, pItem, nullptr);
+        return;
+    }
+
     // locked item
     uint32 lockId = proto->LockID;
     if (lockId && !pItem->HasFlag(ITEM_FIELD_FLAGS, ITEM_DYNFLAG_UNLOCKED))
@@ -212,10 +218,10 @@ void WorldSession::HandleOpenItemOpcode(WorldPacket& recvPacket)
 
     if (pItem->HasFlag(ITEM_FIELD_FLAGS, ITEM_DYNFLAG_WRAPPED))// wrapped?
     {
-        QueryResult* result = CharacterDatabase.PQuery("SELECT entry, flags FROM character_gifts WHERE item_guid = '%u'", pItem->GetGUIDLow());
-        if (result)
+        auto queryResult = CharacterDatabase.PQuery("SELECT entry, flags FROM character_gifts WHERE item_guid = '%u'", pItem->GetGUIDLow());
+        if (queryResult)
         {
-            Field* fields = result->Fetch();
+            Field* fields = queryResult->Fetch();
             uint32 entry = fields[0].GetUInt32();
             uint32 flags = fields[1].GetUInt32();
 
@@ -223,7 +229,6 @@ void WorldSession::HandleOpenItemOpcode(WorldPacket& recvPacket)
             pItem->SetEntry(entry);
             pItem->SetUInt32Value(ITEM_FIELD_FLAGS, flags);
             pItem->SetState(ITEM_CHANGED, pUser);
-            delete result;
         }
         else
         {
@@ -268,6 +273,12 @@ void WorldSession::HandleGameObjectUseOpcode(WorldPacket& recv_data)
 
     if (!obj->IsWithinDistInMap(_player, obj->GetInteractionDistance()))
         return;
+
+    if (obj->GetSpellForLock(_player))
+    {
+        sLog.outError("HandleGameObjectUseOpcode: CMSG_GAMEOBJ_USE for spell locked object (Entry %u), didn't expect this to happen.", obj->GetEntry());
+        return;
+    }
 
     // Additional check preventing exploits (ie loot despawned chests)
     if (!obj->IsSpawned())
@@ -368,7 +379,7 @@ void WorldSession::HandleCastSpellOpcode(WorldPacket& recvPacket)
     // client provided targets
     SpellCastTargets targets;
 
-#ifdef BUILD_PLAYERBOT
+#ifdef BUILD_DEPRECATED_PLAYERBOT
     recvPacket >> targets.ReadForCaster(mover);
 #else
     recvPacket >> targets.ReadForCaster(_player);
@@ -420,12 +431,19 @@ void WorldSession::HandleCancelAuraOpcode(WorldPacket& recvPacket)
     if (spellInfo->HasAttribute(SPELL_ATTR_NO_AURA_CANCEL))
         return;
 
+    if (spellInfo->HasAttribute(SPELL_ATTR_EX_NO_AURA_ICON))
+        return;
+
     if (IsPassiveSpell(spellInfo))
         return;
 
     SpellAuraHolder* holder = _player->GetSpellAuraHolder(spellId);
 
     if (!holder)
+        return;
+
+    // cant remove any auras while possessed
+    if (_player->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_POSSESSED) || _player->HasCharmer())
         return;
 
     if (!holder->IsPositive())
@@ -530,23 +548,6 @@ void WorldSession::HandleCancelChanneling(WorldPacket& recv_data)
         return;
 
     _player->InterruptSpell(CURRENT_CHANNELED_SPELL);
-}
-
-void WorldSession::HandleTotemDestroyed(WorldPacket& recvPacket)
-{
-    uint8 slotId;
-
-    recvPacket >> slotId;
-
-    // ignore for remote control state
-    if (!_player->IsSelfMover())
-        return;
-
-    if (int(slotId) >= MAX_TOTEM_SLOT)
-        return;
-
-    if (Totem* totem = GetPlayer()->GetTotem(TotemSlot(slotId)))
-        totem->UnSummon();
 }
 
 void WorldSession::HandleSelfResOpcode(WorldPacket& /*recv_data*/)

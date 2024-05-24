@@ -28,11 +28,12 @@ class DynamicObject;
 
 struct PeriodicTriggerData
 {
+    WorldObject* trueCaster;
     Unit* caster; Unit* target; WorldObject* targetObject;
     SpellEntry const* spellInfo;
     int32* basePoints;
-    PeriodicTriggerData(Unit* caster, Unit* target, WorldObject* targetObject, SpellEntry const* spellInfo, int32* basePoints) :
-        caster(caster), target(target), targetObject(targetObject), spellInfo(spellInfo), basePoints(basePoints) {}
+    PeriodicTriggerData(WorldObject* trueCaster, Unit* caster, Unit* target, WorldObject* targetObject, SpellEntry const* spellInfo, int32* basePoints) :
+        trueCaster(trueCaster), caster(caster), target(target), targetObject(targetObject), spellInfo(spellInfo), basePoints(basePoints) {}
 };
 
 struct SpellScript
@@ -73,9 +74,9 @@ struct SpellScript
 
 struct AuraCalcData
 {
-    Unit* caster; Unit* target; SpellEntry const* spellProto; SpellEffectIndex effIdx;
+    Unit* caster; Unit* target; SpellEntry const* spellProto; SpellEffectIndex effIdx; Item* castItem;
     Aura* aura; // cannot be used in auras that utilize stacking in checkcast - can be nullptr
-    AuraCalcData(Aura* aura, Unit* caster, Unit* target, SpellEntry const* spellProto, SpellEffectIndex effIdx) : caster(caster), target(target), spellProto(spellProto), effIdx(effIdx), aura(aura) {}
+    AuraCalcData(Aura* aura, Unit* caster, Unit* target, SpellEntry const* spellProto, SpellEffectIndex effIdx, Item* castItem) : caster(caster), target(target), spellProto(spellProto), effIdx(effIdx), aura(aura), castItem(castItem) {}
 };
 
 struct AuraScript
@@ -92,7 +93,7 @@ struct AuraScript
     virtual void OnDamageCalculate(Aura* /*aura*/, Unit* /*attacker*/, Unit* /*victim*/, int32& /*advertisedBenefit*/, float& /*totalMod*/) const {}
     // called during duration calculation - target can be nullptr for channel duration calculation
     virtual int32 OnDurationCalculate(WorldObject const* /*caster*/, Unit const* /*target*/, int32 duration) const { return duration; }
-    virtual void OnCritChanceCalculate(Aura* /*aura*/, Unit const* /*target*/, float& /*chance*/) const {}
+    virtual void OnCritChanceCalculate(Aura* /*aura*/, Unit const* /*target*/, float& /*chance*/, SpellEntry const* /*spellInfo*/) const {}
     // the following two hooks are done in an alternative fashion due to how they are usually used
     // if an aura is applied before, its removed after, and if some aura needs to do something after aura effect is applied, need to revert that change before its removed
     // called before aura apply and after aura unapply
@@ -106,7 +107,7 @@ struct AuraScript
     // called before proc handler
     virtual SpellAuraProcResult OnProc(Aura* /*aura*/, ProcExecutionData& /*procData*/) const { return SPELL_AURA_PROC_OK; }
     // called on absorb of this aura
-    virtual void OnAbsorb(Aura* /*aura*/, int32& /*currentAbsorb*/, int32& /*remainingDamage*/, uint32& /*reflectedSpellId*/, int32& /*reflectDamage*/, bool& /*preventedDeath*/, bool& /*dropCharge*/) const {}
+    virtual void OnAbsorb(Aura* /*aura*/, int32& /*currentAbsorb*/, int32& /*remainingDamage*/, uint32& /*reflectedSpellId*/, int32& /*reflectDamage*/, bool& /*preventedDeath*/, bool& /*dropCharge*/, DamageEffectType /*damageType*/) const {}
     // called on mana shield absorb of this aura
     virtual void OnManaAbsorb(Aura* /*aura*/, int32& /*currentAbsorb*/) const {}
     // called on death prevention
@@ -123,8 +124,12 @@ struct AuraScript
     virtual void OnPeriodicTickEnd(Aura* /*aura*/) const {}
     // called on persistent area aura dyngo lifetime end
     virtual void OnPersistentAreaAuraEnd(DynamicObject* /*dynGo*/) const {}
+    // called on AreaAura target selection
+    virtual bool OnPersistentAreaAuraCheckTarget(DynamicObject* /*dynGo*/, Unit* /*target*/) const { return true; }
     // called on unit heartbeat
     virtual void OnHeartbeat(Aura* /*aura*/) const {}
+    // called on AreaAura target checking
+    virtual bool OnAreaAuraCheckTarget(Aura const* aura, Unit* target) const { return true; }
     // called on affect check of aura - spellInfo can be nullptr in case of melee
     virtual bool OnAffectCheck(Aura const* /*aura*/, SpellEntry const* /*spellInfo*/) const { return true; }
     // used to override SPELL_AURA_TRANSFORM or SPELL_AURA_MOD_SHAPESHIFT display id - more uses in future

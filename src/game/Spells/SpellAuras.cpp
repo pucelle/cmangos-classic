@@ -21,7 +21,7 @@
 #include "Server/WorldPacket.h"
 #include "Server/WorldSession.h"
 #include "Server/Opcodes.h"
-#include "Log.h"
+#include "Log/Log.h"
 #include "World/World.h"
 #include "Globals/ObjectMgr.h"
 #include "Spells/SpellMgr.h"
@@ -271,36 +271,7 @@ Aura::Aura(SpellEntry const* spellproto, SpellEffectIndex eff, int32 const* curr
     int32 damage = currentDamage ? *currentDamage : m_currentBasePoints;
     if (caster)
     {
-        // scripting location for custom aura damage - needs to be moved to spellscripting for proper checkcast interaction
-        switch (spellproto->Id)
-        {
-            case 6143: // Frost Ward
-            case 8461: // spell reflect chance
-            case 8462:
-            case 10177:
-            case 28609:
-            {
-                if (eff != EFFECT_INDEX_1)
-                    break;
-                SpellAuraHolder* holder = target->GetSpellAuraHolder(11189);
-                if (!holder)
-                    holder = target->GetSpellAuraHolder(28332);
-                if (holder)
-                {
-                    damage += target->CalculateSpellEffectValue(target, holder->GetSpellProto(), EFFECT_INDEX_1);
-                }
-                break;
-            }
-            case 8516: // Windfury Totem
-            case 10608:
-            case 10610:
-                if (castItem)
-                    damage += (damage * castItem->GetEnchantmentModifier() / 100);
-                break;
-            default:
-                damage = OnAuraValueCalculate(caster, damage);
-                break;
-        }
+        damage = OnAuraValueCalculate(caster, damage, castItem);
     }
 
     DEBUG_FILTER_LOG(LOG_FILTER_SPELL_CAST, "Aura: construct Spellid : %u, Aura : %u Target : %d Damage : %d", spellproto->Id, spellproto->EffectApplyAuraName[eff], spellproto->EffectImplicitTargetA[eff], damage);
@@ -357,6 +328,13 @@ AreaAura::AreaAura(SpellEntry const* spellproto, SpellEffectIndex eff, int32 con
 
 AreaAura::~AreaAura()
 {
+}
+
+bool AreaAura::OnAreaAuraCheckTarget(Unit* target) const
+{
+    if (AuraScript* script = GetAuraScript())
+        return script->OnAreaAuraCheckTarget(this, target);
+    return true;
 }
 
 PersistentAreaAura::PersistentAreaAura(SpellEntry const* spellproto, SpellEffectIndex eff, int32 const* currentDamage, int32 const* currentBasePoints, SpellAuraHolder* holder, Unit* target,
@@ -507,6 +485,9 @@ void AreaAura::Update(uint32 diff)
 
             for (auto& target : targets)
             {
+                if (!OnAreaAuraCheckTarget(target))
+                    continue;
+
                 // flag for selection is need apply aura to current iteration target
                 bool apply = true;
 
@@ -730,7 +711,7 @@ bool Aura::isAffectedOnSpell(SpellEntry const* spellProto) const
     return spellProto->IsFitToFamilyMask(mask);
 }
 
-bool Aura::CanProcFrom(SpellEntry const* spell, uint32 EventProcEx, uint32 procEx, bool active, bool useClassMask) const
+bool Aura::CanProcFrom(SpellEntry const* spell, uint32 EventProcEx, uint32 procEx, bool damaging, bool absorbing, bool useClassMask) const
 {
     // Check EffectClassMask
     ClassFamilyMask mask = GetAuraSpellClassMask();
@@ -750,18 +731,23 @@ bool Aura::CanProcFrom(SpellEntry const* spell, uint32 EventProcEx, uint32 procE
     // if no class mask defined, or spell_proc_event has SpellFamilyName=0 - allow proc
     if (!useClassMask || !mask)
     {
-        if (!(EventProcEx & PROC_EX_EX_TRIGGER_ALWAYS))
+        if (!(EventProcEx & PROC_EX_EX_TRIGGER_ON_NO_DAMAGE))
         {
             // Check for extra req (if none) and hit/crit
             if (EventProcEx == PROC_EX_NONE)
             {
+                if ((procEx & PROC_EX_CAST_END) != 0) // cast end does not care about damage/healing
+                    return true;
+                if ((procEx & PROC_EX_ABSORB) && absorbing) // trigger ex absorb procs even if no damage is dealt
+                    return true;
+
                 // No extra req, so can trigger only for active (damage/healing present) and hit/crit
-                return ((procEx & (PROC_EX_NORMAL_HIT | PROC_EX_CRITICAL_HIT)) && active) || procEx == PROC_EX_CAST_END;
+                return ((procEx & (PROC_EX_NORMAL_HIT | PROC_EX_CRITICAL_HIT)) && damaging);
             }
             // Passive spells hits here only if resist/reflect/immune/evade
             // Passive spells can`t trigger if need hit (exclude cases when procExtra include non-active flags)
-            if ((EventProcEx & (PROC_EX_NORMAL_HIT | PROC_EX_CRITICAL_HIT) & procEx) && !active)
-                return false;
+            if ((EventProcEx & (PROC_EX_NORMAL_HIT | PROC_EX_CRITICAL_HIT) & procEx) && !damaging)
+                return (EventProcEx & (PROC_EX_ABSORB) & procEx) && !absorbing; // but allow full absorb case when specified
         }
         return true;
     }
@@ -871,9 +857,11 @@ void Aura::PickTargetsForSpellTrigger(Unit*& triggerCaster, Unit*& triggerTarget
 
 void Aura::CastTriggeredSpell(PeriodicTriggerData& data)
 {
-    Spell* spell = new Spell(data.caster, data.spellInfo, TRIGGERED_OLD_TRIGGERED, data.caster->GetObjectGuid(), GetSpellProto());
+    Spell* spell = new Spell(data.trueCaster ? data.trueCaster : data.caster, data.spellInfo, TRIGGERED_OLD_TRIGGERED, data.trueCaster ? data.trueCaster->GetObjectGuid() : data.caster->GetObjectGuid(), GetSpellProto());
     if (data.spellInfo->HasAttribute(SPELL_ATTR_EX2_RETAIN_ITEM_CAST)) // forward guid to at least spell go
         spell->SetForwardedCastItem(GetCastItemGuid());
+    if (data.trueCaster && data.caster)
+        spell->SetFakeCaster(data.caster);
     SpellCastTargets targets;
     if (data.spellInfo->Targets & TARGET_FLAG_DEST_LOCATION)
     {
@@ -1232,7 +1220,7 @@ void Aura::TriggerSpell()
         }
     }
     int32 basePoints[] = { 0,0,0 };
-    PeriodicTriggerData data(triggerCaster, triggerTarget, triggerTargetObject, triggeredSpellInfo, basePoints);
+    PeriodicTriggerData data(nullptr, triggerCaster, triggerTarget, triggerTargetObject, triggeredSpellInfo, basePoints);
     OnPeriodicTrigger(data);
 
     // All ok cast by default case
@@ -1599,12 +1587,6 @@ void Aura::HandleAuraDummy(bool apply, bool Real)
 
                     return;
                 }
-                case 27978:
-                    if (apply)
-                        target->m_AuraFlags |= UNIT_AURAFLAG_ALIVE_INVISIBLE;
-                    else
-                        target->m_AuraFlags &= ~UNIT_AURAFLAG_ALIVE_INVISIBLE;
-                    return;
             }
             break;
         }
@@ -3239,7 +3221,7 @@ void Aura::HandlePeriodicHeal(bool apply, bool /*Real*/)
         switch (GetSpellProto()->Id)
         {
             case 12939: m_modifier.m_amount = target->GetMaxHealth() / 10; break; // Polymorph Heal Effect
-            default: m_modifier.m_amount = caster->SpellHealingBonusDone(target, GetSpellProto(), m_modifier.m_amount, DOT, GetStackAmount()); break;
+            default: m_modifier.m_amount = caster->SpellHealingBonusDone(target, GetSpellProto(), GetEffIndex(), m_modifier.m_amount, DOT, GetStackAmount()); break;
         }
     }
 }
@@ -3308,12 +3290,12 @@ void Aura::HandlePeriodicDamage(bool apply, bool Real)
         {
             // SpellDamageBonusDone for magic spells
             if (spellProto->DmgClass == SPELL_DAMAGE_CLASS_NONE || spellProto->DmgClass == SPELL_DAMAGE_CLASS_MAGIC)
-                m_modifier.m_amount = caster->SpellDamageBonusDone(target, GetSpellSchoolMask(GetSpellProto()), GetSpellProto(), m_modifier.m_amount, DOT, GetStackAmount());
+                m_modifier.m_amount = caster->SpellDamageBonusDone(target, GetSpellSchoolMask(GetSpellProto()), GetSpellProto(), GetEffIndex(), m_modifier.m_amount, DOT, GetStackAmount());
             // MeleeDamagebonusDone for weapon based spells
             else
             {
                 WeaponAttackType attackType = GetWeaponAttackType(GetSpellProto());
-                m_modifier.m_amount = caster->MeleeDamageBonusDone(target, m_modifier.m_amount, attackType, GetSpellSchoolMask(spellProto), spellProto, DOT, GetStackAmount());
+                m_modifier.m_amount = caster->MeleeDamageBonusDone(target, m_modifier.m_amount, attackType, GetSpellSchoolMask(spellProto), spellProto, GetEffIndex(), DOT, GetStackAmount());
             }
 
             // Player's DOT is affected by critical damage rate.
@@ -3364,7 +3346,7 @@ void Aura::HandlePeriodicLeech(bool apply, bool /*Real*/)
         if (!caster)
             return;
 
-        m_modifier.m_amount = caster->SpellDamageBonusDone(GetTarget(), GetSpellSchoolMask(GetSpellProto()), GetSpellProto(), m_modifier.m_amount, DOT, GetStackAmount());
+        m_modifier.m_amount = caster->SpellDamageBonusDone(GetTarget(), GetSpellSchoolMask(GetSpellProto()), GetSpellProto(), GetEffIndex(), m_modifier.m_amount, DOT, GetStackAmount());
     }
 }
 
@@ -3402,7 +3384,7 @@ void Aura::HandlePeriodicHealthFunnel(bool apply, bool /*Real*/)
         if (!caster)
             return;
 
-        m_modifier.m_amount = caster->SpellDamageBonusDone(GetTarget(), GetSpellSchoolMask(GetSpellProto()), GetSpellProto(), m_modifier.m_amount, DOT, GetStackAmount());
+        m_modifier.m_amount = caster->SpellDamageBonusDone(GetTarget(), GetSpellSchoolMask(GetSpellProto()), GetSpellProto(), GetEffIndex(), m_modifier.m_amount, DOT, GetStackAmount());
     }
 }
 
@@ -3954,8 +3936,18 @@ void Aura::HandleModHitChance(bool apply, bool /*Real*/)
 {
     Unit* target = GetTarget();
 
-    target->m_modMeleeHitChance += (apply ? m_modifier.m_amount : -m_modifier.m_amount);
-    target->m_modRangedHitChance += (apply ? m_modifier.m_amount : -m_modifier.m_amount);
+    if (target->IsPlayer())
+    {
+        static_cast<Player*>(target)->UpdateWeaponHitChances(BASE_ATTACK);
+        static_cast<Player*>(target)->UpdateWeaponHitChances(OFF_ATTACK);
+        static_cast<Player*>(target)->UpdateWeaponHitChances(RANGED_ATTACK);
+    }
+    else
+    {
+        target->m_modWeaponHitChance[BASE_ATTACK] += (apply ? m_modifier.m_amount : -m_modifier.m_amount);
+        target->m_modWeaponHitChance[OFF_ATTACK] += (apply ? m_modifier.m_amount : -m_modifier.m_amount);
+        target->m_modWeaponHitChance[RANGED_ATTACK] += (apply ? m_modifier.m_amount : -m_modifier.m_amount);
+    }
 }
 
 void Aura::HandleModSpellHitChance(bool apply, bool /*Real*/)
@@ -4615,12 +4607,12 @@ void Aura::PeriodicTick()
             bool isNotBleed = GetEffectMechanic(spellProto, m_effIndex) != MECHANIC_BLEED;
             // SpellDamageBonus for magic spells
             if ((spellProto->DmgClass == SPELL_DAMAGE_CLASS_NONE && isNotBleed) || spellProto->DmgClass == SPELL_DAMAGE_CLASS_MAGIC)
-                pdamage = target->SpellDamageBonusTaken(caster, GetSpellSchoolMask(spellProto), spellProto, pdamage, DOT, GetStackAmount());
+                pdamage = target->SpellDamageBonusTaken(caster, GetSpellSchoolMask(spellProto), spellProto, GetEffIndex(), pdamage, DOT, GetStackAmount());
             // MeleeDamagebonus for weapon based spells
             else
             {
                 WeaponAttackType attackType = GetWeaponAttackType(spellProto);
-                pdamage = target->MeleeDamageBonusTaken(caster, pdamage, attackType, GetSpellSchoolMask(spellProto), spellProto, DOT, GetStackAmount());
+                pdamage = target->MeleeDamageBonusTaken(caster, pdamage, attackType, GetSpellSchoolMask(spellProto), spellProto, GetEffIndex(), DOT, GetStackAmount());
             }
 
             target->CalculateDamageAbsorbAndResist(caster, GetSpellSchoolMask(spellProto), DOT, pdamage, &absorb, &resist, IsReflectableSpell(spellProto), IsResistableSpell(spellProto));
@@ -4648,7 +4640,7 @@ void Aura::PeriodicTick()
             CleanDamage cleanDamage(pdamage, BASE_ATTACK, MELEE_HIT_NORMAL, pdamage || absorb);
             Unit::DealDamage(caster, target, pdamage, &cleanDamage, DOT, GetSpellSchoolMask(spellProto), spellProto, true);
 
-            Unit::ProcDamageAndSpell(ProcSystemArguments(caster, target, procAttacker, procVictim, PROC_EX_NORMAL_HIT, pdamage, BASE_ATTACK, spellProto));
+            Unit::ProcDamageAndSpell(ProcSystemArguments(caster, target, procAttacker, procVictim, PROC_EX_NORMAL_HIT, pdamage, absorb, BASE_ATTACK, spellProto));
 
             if (GetId() == 13493)
                 m_scriptValue += pdamage;
@@ -4688,7 +4680,7 @@ void Aura::PeriodicTick()
             uint32 absorb = 0;
             int32 resist = 0;
 
-            pdamage = target->SpellDamageBonusTaken(pCaster, GetSpellSchoolMask(spellProto), spellProto, pdamage, DOT, GetStackAmount());
+            pdamage = target->SpellDamageBonusTaken(pCaster, GetSpellSchoolMask(spellProto), spellProto, GetEffIndex(), pdamage, DOT, GetStackAmount());
 
             target->CalculateDamageAbsorbAndResist(pCaster, GetSpellSchoolMask(spellProto), DOT, pdamage, &absorb, &resist, IsReflectableSpell(spellProto), IsResistableSpell(spellProto));
 
@@ -4717,7 +4709,7 @@ void Aura::PeriodicTick()
 
             CleanDamage cleanDamage(pdamage, BASE_ATTACK, MELEE_HIT_NORMAL, pdamage || absorb);
             int32 new_damage = Unit::DealDamage(pCaster, target, pdamage, &cleanDamage, DOT, GetSpellSchoolMask(spellProto), spellProto, false);
-            Unit::ProcDamageAndSpell(ProcSystemArguments(pCaster, target, procAttacker, procVictim, PROC_EX_NORMAL_HIT, pdamage, BASE_ATTACK, spellProto));
+            Unit::ProcDamageAndSpell(ProcSystemArguments(pCaster, target, procAttacker, procVictim, PROC_EX_NORMAL_HIT, pdamage, absorb, BASE_ATTACK, spellProto));
 
             if (!target->IsAlive() && pCaster->IsNonMeleeSpellCasted(false))
                 for (uint32 i = CURRENT_FIRST_NON_MELEE_SPELL; i < CURRENT_MAX_SPELL; ++i)
@@ -4731,7 +4723,7 @@ void Aura::PeriodicTick()
                 modOwner->ApplySpellMod(GetId(), SPELLMOD_MULTIPLE_VALUE, multiplier);
             }
 
-            uint32 heal = pCaster->SpellHealingBonusTaken(pCaster, spellProto, int32(new_damage * multiplier), DOT, GetStackAmount());
+            uint32 heal = pCaster->SpellHealingBonusTaken(pCaster, spellProto, GetEffIndex(), int32(new_damage * multiplier), DOT, GetStackAmount());
 
             int32 gain = pCaster->DealHeal(pCaster, heal, spellProto);
             // Health Leech effects do not generate healing aggro
@@ -4774,7 +4766,7 @@ void Aura::PeriodicTick()
                 break;
             }
 
-            pdamage = target->SpellHealingBonusTaken(pCaster, spellProto, pdamage, DOT, GetStackAmount());
+            pdamage = target->SpellHealingBonusTaken(pCaster, spellProto, GetEffIndex(), pdamage, DOT, GetStackAmount());
 
             DETAIL_FILTER_LOG(LOG_FILTER_PERIODIC_AFFECTS, "PeriodicTick: %s heal of %s for %u health inflicted by %u",
                 GetCasterGuid().GetString().c_str(), target->GetGuidStr().c_str(), pdamage, GetId());
@@ -4791,7 +4783,7 @@ void Aura::PeriodicTick()
             if (pCaster->IsInCombat() && !pCaster->IsCrowdControlled())
                 target->getHostileRefManager().threatAssist(pCaster, float(gain) * 0.5f * sSpellMgr.GetSpellThreatMultiplier(spellProto), spellProto, false, true);
 
-            Unit::ProcDamageAndSpell(ProcSystemArguments(pCaster, target, procAttacker, procVictim, procEx, gain, BASE_ATTACK, spellProto, nullptr, gain, true));
+            Unit::ProcDamageAndSpell(ProcSystemArguments(pCaster, target, procAttacker, procVictim, procEx, gain, 0, BASE_ATTACK, spellProto, nullptr, gain, true));
             break;
         }
         case SPELL_AURA_PERIODIC_MANA_LEECH:
@@ -4982,7 +4974,7 @@ void Aura::PeriodicTick()
             SpellNonMeleeDamage spellDamageInfo(pCaster, target, spellProto->Id, SpellSchools(spellProto->School));
             spellDamageInfo.periodicLog = true;
 
-            pCaster->CalculateSpellDamage(&spellDamageInfo, gain, spellProto);
+            pCaster->CalculateSpellDamage(&spellDamageInfo, gain, spellProto, GetEffIndex());
 
             spellDamageInfo.target->CalculateAbsorbResistBlock(pCaster, &spellDamageInfo, spellProto);
 
@@ -4999,7 +4991,7 @@ void Aura::PeriodicTick()
 
             Unit::DealSpellDamage(pCaster, &spellDamageInfo, true, false);
 
-            Unit::ProcDamageAndSpell(ProcSystemArguments(pCaster, spellDamageInfo.target, procAttacker, procVictim, procEx, spellDamageInfo.damage, BASE_ATTACK, spellProto));
+            Unit::ProcDamageAndSpell(ProcSystemArguments(pCaster, spellDamageInfo.target, procAttacker, procVictim, procEx, spellDamageInfo.damage, spellDamageInfo.absorb, BASE_ATTACK, spellProto));
             break;
         }
         case SPELL_AURA_MOD_REGEN:
@@ -5534,7 +5526,7 @@ void SpellAuraHolder::SetStackAmount(uint32 stackAmount, Unit* newCaster)
         {
             int32 baseAmount = aur->GetModifier()->m_baseAmount;
             int32 amount = m_stackAmount * baseAmount;
-            amount = aur->OnAuraValueCalculate(newCaster, amount);
+            amount = aur->OnAuraValueCalculate(newCaster, amount, nullptr);
             // Reapply if amount change
             if (!baseAmount || amount != aur->GetModifier()->m_amount)
             {
@@ -6113,9 +6105,9 @@ uint32 Aura::CalculateAuraEffectValue(Unit* caster, Unit* target, SpellEntry con
         case SPELL_AURA_SCHOOL_ABSORB:
         {
             float DoneActualBenefit = 0.0f;
-            if (SpellBonusEntry const* bonus = sSpellMgr.GetSpellBonusData(spellProto->Id))
+            if (spellProto->effectBonusCoefficient[effIdx] > 0)
             {
-                DoneActualBenefit = caster->SpellBaseHealingBonusDone(GetSpellSchoolMask(spellProto)) * bonus->direct_damage;
+                DoneActualBenefit = caster->SpellBaseHealingBonusDone(GetSpellSchoolMask(spellProto)) * spellProto->effectBonusCoefficient[effIdx];
                 DoneActualBenefit *= caster->CalculateLevelPenalty(spellProto);
 
                 value += (int32)DoneActualBenefit;
@@ -6161,11 +6153,11 @@ void Aura::OnAuraInit()
         script->OnAuraInit(this);
 }
 
-int32 Aura::OnAuraValueCalculate(Unit* caster, int32 currentValue)
+int32 Aura::OnAuraValueCalculate(Unit* caster, int32 currentValue, Item* castItem)
 {
     if (AuraScript* script = GetAuraScript())
     {
-        AuraCalcData data(this, caster, GetTarget(), GetSpellProto(), GetEffIndex());
+        AuraCalcData data(this, caster, GetTarget(), GetSpellProto(), GetEffIndex(), castItem);
         return script->OnAuraValueCalculate(data, currentValue);
     }
     return currentValue;
@@ -6177,10 +6169,10 @@ void Aura::OnDamageCalculate(Unit* victim, Unit* attacker, int32& advertisedBene
         return script->OnDamageCalculate(this, attacker, victim, advertisedBenefit, totalMod);
 }
 
-void Aura::OnCritChanceCalculate(Unit const* victim, float& chance)
+void Aura::OnCritChanceCalculate(Unit const* victim, float& chance, SpellEntry const* spellInfo)
 {
     if (AuraScript* script = GetAuraScript())
-        return script->OnCritChanceCalculate(this, victim, chance);
+        return script->OnCritChanceCalculate(this, victim, chance, spellInfo);
 }
 
 void Aura::OnApply(bool apply)
@@ -6209,10 +6201,10 @@ SpellAuraProcResult Aura::OnProc(ProcExecutionData& data)
     return SPELL_AURA_PROC_OK;
 }
 
-void Aura::OnAbsorb(int32& currentAbsorb, int32& remainingDamage, uint32& reflectedSpellId, int32& reflectDamage, bool& preventedDeath, bool& dropCharge)
+void Aura::OnAbsorb(int32& currentAbsorb, int32& remainingDamage, uint32& reflectedSpellId, int32& reflectDamage, bool& preventedDeath, bool& dropCharge, DamageEffectType damageType)
 {
     if (AuraScript* script = GetAuraScript())
-        script->OnAbsorb(this, currentAbsorb, remainingDamage, reflectedSpellId, reflectDamage, preventedDeath, dropCharge);
+        script->OnAbsorb(this, currentAbsorb, remainingDamage, reflectedSpellId, reflectDamage, preventedDeath, dropCharge, damageType);
 }
 
 void Aura::OnManaAbsorb(int32& currentAbsorb)

@@ -20,7 +20,7 @@
 #include "Maps/MapPersistentStateMgr.h"
 #include "Policies/Singleton.h"
 #include "Database/DatabaseEnv.h"
-#include "Log.h"
+#include "Log/Log.h"
 #include "Entities/Transports.h"
 #include "Maps/GridDefines.h"
 #include "World/World.h"
@@ -269,11 +269,10 @@ void MapManager::InitMaxInstanceId()
 {
     i_MaxInstanceId = 0;
 
-    QueryResult* result = CharacterDatabase.Query("SELECT MAX(id) FROM instance");
-    if (result)
+    auto queryResult = CharacterDatabase.Query("SELECT MAX(id) FROM instance");
+    if (queryResult)
     {
-        i_MaxInstanceId = result->Fetch()[0].GetUInt32();
-        delete result;
+        i_MaxInstanceId = queryResult->Fetch()[0].GetUInt32();
     }
 }
 

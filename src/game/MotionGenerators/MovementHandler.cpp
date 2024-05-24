@@ -20,7 +20,7 @@
 #include "Server/WorldPacket.h"
 #include "Server/WorldSession.h"
 #include "Server/Opcodes.h"
-#include "Log.h"
+#include "Log/Log.h"
 #include "Entities/Player.h"
 #include "Movement/MoveSpline.h"
 #include "Maps/MapManager.h"
@@ -115,7 +115,8 @@ void WorldSession::HandleMoveWorldportAckOpcode()
     }
 
     uint32 miscRequirement = 0;
-    if (AreaTrigger const* at = sObjectMgr.GetMapEntranceTrigger(loc.mapid))
+    AreaTrigger const* at = sObjectMgr.GetMapEntranceTrigger(loc.mapid);
+    if (at)
     {
         if (AREA_LOCKSTATUS_OK != GetPlayer()->GetAreaTriggerLockStatus(at, miscRequirement))
         {
@@ -135,6 +136,15 @@ void WorldSession::HandleMoveWorldportAckOpcode()
     // relocate the player to the teleport destination
     if (!map)
         map = sMapMgr.CreateMap(loc.mapid, GetPlayer());
+
+    // if dead player is entering an instance of same id but corpse is not found, likely means entering different instance id
+    if (GetPlayer()->IsDelayedResurrect() && !map->GetCorpse(GetPlayer()->GetObjectGuid()) && at)
+    {
+        // respawn at entrance
+        loc.coord_x = at->target_X;
+        loc.coord_y = at->target_Y;
+        loc.coord_z = at->target_Z;
+    }
 
     GetPlayer()->SetMap(map);
     bool found = true;
@@ -276,9 +286,25 @@ void WorldSession::HandleMoveTeleportAckOpcode(WorldPacket& recv_data)
 
     WorldLocation const& dest = plMover->GetTeleportDest();
 
+#ifdef ENABLE_PLAYERBOTS
+    // send MSG_MOVE_TELEPORT to observers around old position
+    SendTeleportToObservers(dest.coord_x, dest.coord_y, dest.coord_z, dest.orientation);
+
+    // interrupt moving for bot if any
+    if (plMover->GetPlayerbotAI() && !plMover->GetMotionMaster()->empty())
+    {
+        if (MovementGenerator* movgen = plMover->GetMotionMaster()->top())
+            movgen->Interrupt(*plMover);
+    }
+#endif
+
     plMover->SetDelayedZoneUpdate(false, 0);
 
     plMover->SetPosition(dest.coord_x, dest.coord_y, dest.coord_z, dest.orientation, true);
+
+#ifdef ENABLE_PLAYERBOTS
+    plMover->m_movementInfo.ChangePosition(dest.coord_x, dest.coord_y, dest.coord_z, dest.orientation);
+#endif
 
     plMover->SetFallInformation(0, dest.coord_z);
 
@@ -291,6 +317,26 @@ void WorldSession::HandleMoveTeleportAckOpcode(WorldPacket& recv_data)
 
     uint32 newzone, newarea;
     plMover->GetZoneAndAreaId(newzone, newarea);
+
+#ifdef ENABLE_PLAYERBOTS
+    // new zone
+    if (old_zone != newzone)
+        plMover->UpdateZone(newzone, newarea);
+
+    // honorless target
+    if (plMover->pvpInfo.inPvPEnforcedArea)
+        plMover->CastSpell(plMover, 2479, TRIGGERED_OLD_TRIGGERED);
+
+    // reset moving for bot if any
+    if (plMover->GetPlayerbotAI() && !plMover->GetMotionMaster()->empty())
+    {
+        if (MovementGenerator* movgen = plMover->GetMotionMaster()->top())
+            movgen->Reset(*plMover);
+    }
+
+    // send MSG_MOVE_TELEPORT to observers around new position
+    SendTeleportToObservers(dest.coord_x, dest.coord_y, dest.coord_z, dest.orientation);
+#else
     plMover->UpdateZone(newzone, newarea);
 
     // new zone
@@ -300,6 +346,7 @@ void WorldSession::HandleMoveTeleportAckOpcode(WorldPacket& recv_data)
         if (plMover->pvpInfo.inPvPEnforcedArea)
             plMover->CastSpell(plMover, 2479, TRIGGERED_OLD_TRIGGERED);
     }
+#endif
 
     m_anticheat->Teleport({ dest.coord_x, dest.coord_y, dest.coord_z, dest.orientation });
 
@@ -533,6 +580,19 @@ void WorldSession::SendKnockBack(Unit* who, float angle, float horizontalSpeed, 
     m_anticheat->KnockBack(horizontalSpeed, -verticalSpeed, vcos, vsin);
 }
 
+#ifdef ENABLE_PLAYERBOTS
+void WorldSession::SendTeleportToObservers(float x, float y, float z, float orientation)
+{
+    WorldPacket data(MSG_MOVE_TELEPORT, 64);
+    data << _player->GetPackGUID();
+    // copy move info to change position to where player is teleporting
+    MovementInfo moveInfo = _player->m_movementInfo;
+    moveInfo.ChangePosition(x, y, z, orientation);
+    data << moveInfo;
+    _player->SendMessageToSetExcept(data, _player);
+}
+#endif
+
 void WorldSession::HandleMoveFlagChangeOpcode(WorldPacket& recv_data)
 {
     DEBUG_LOG("%s", recv_data.GetOpcodeName());
@@ -561,6 +621,7 @@ void WorldSession::HandleMoveFlagChangeOpcode(WorldPacket& recv_data)
         case CMSG_MOVE_HOVER_ACK: response = MSG_MOVE_HOVER; break;
         case CMSG_MOVE_FEATHER_FALL_ACK: response = MSG_MOVE_FEATHER_FALL; break;
         case CMSG_MOVE_WATER_WALK_ACK: response = MSG_MOVE_WATER_WALK; break;
+        default: response = MSG_NULL_ACTION; break;
     }
 
     WorldPacket data(response, 8);

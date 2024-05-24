@@ -94,7 +94,7 @@ class PlayerbotPaladinAI : PlayerbotClassAI
         // Resurrects the target
         CombatManeuverReturns ResurrectPlayer(Player* target) override;
         // Dispel disease or negative magic effects from an internally selected target
-        CombatManeuverReturns DispelPlayerOrPet(Unit* target = nullptr);
+        CombatManeuverReturns DispelPlayerOrPet(Unit* target = nullptr) override;
 
         //Changes aura according to spec/orders
         void CheckAuras();

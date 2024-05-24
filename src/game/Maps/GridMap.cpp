@@ -16,7 +16,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include "Log.h"
+#include "Log/Log.h"
 #include "Grids/CellImpl.h"
 #include "GridDefines.h"
 #include "Maps/Map.h"
@@ -302,7 +302,7 @@ float GridMap::getHeightFromFloat(float x, float y) const
     x_int &= (MAP_RESOLUTION - 1);
     y_int &= (MAP_RESOLUTION - 1);
 
-    if (m_holes && isHole(x_int, y_int))
+    if (isHole(x_int, y_int))
         return INVALID_HEIGHT_VALUE;
 
     // Height stored as: h5 - its v8 grid, h1-h4 - its v9 grid

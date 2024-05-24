@@ -33,7 +33,7 @@
 #include "Maps/MapPersistentStateMgr.h"
 #include "LFG/LFGMgr.h"
 #include "LFG/LFGQueue.h"
-#ifdef BUILD_PLAYERBOT
+#ifdef BUILD_DEPRECATED_PLAYERBOT
 #include "PlayerBot/Base/PlayerbotMgr.h"
 #endif
 
@@ -356,7 +356,23 @@ bool Group::AddMember(ObjectGuid guid, const char* name, uint8 joinMethod)
             WorldPacket groupDataPacket = groupData.BuildPacket(0, false);
             player->SendDirectMessage(groupDataPacket);
         }
-        
+
+#ifdef ENABLE_PLAYERBOTS
+        if (!IsLeader(player->GetObjectGuid()) && sWorld.GetLFGQueue().IsPlayerInQueue(player->GetObjectGuid()))
+        {
+            bool notifyPlayer = true; // show "you have left queue" message only if different dungeons
+            if (IsInLFG())
+            {
+                LFGGroupQueueInfo grpLfgInfo;
+                LFGPlayerQueueInfo plrLfgInfo;
+                sWorld.GetLFGQueue().GetGroupQueueInfo(&grpLfgInfo, GetId());
+                sWorld.GetLFGQueue().GetPlayerQueueInfo(&plrLfgInfo, player->GetObjectGuid());
+                notifyPlayer = grpLfgInfo.areaId != plrLfgInfo.areaId;
+            }
+            sWorld.GetLFGQueue().RemovePlayerFromQueue(player->GetObjectGuid(), notifyPlayer ? PLAYER_CLIENT_LEAVE : PLAYER_SYSTEM_LEAVE);
+        }
+#endif
+
         if (IsInLFG())
         {
             if (joinMethod != GROUP_LFG)
@@ -372,7 +388,7 @@ bool Group::AddMember(ObjectGuid guid, const char* name, uint8 joinMethod)
 uint32 Group::RemoveMember(ObjectGuid guid, uint8 method)
 {
     Player* player = sObjectMgr.GetPlayer(guid);
-#ifdef BUILD_PLAYERBOT
+#ifdef BUILD_DEPRECATED_PLAYERBOT
     // if master leaves group, all bots leave group
     if (player && player->GetPlayerbotMgr())
         player->GetPlayerbotMgr()->RemoveAllBotsFromGroup();
@@ -686,6 +702,7 @@ void Group::SendUpdateTo(Player* player)
             data << uint8(m_lootMethod);                    // loot method
             data << masterLootGuid;                         // master loot guid
             data << uint8(m_lootThreshold);                 // loot threshold
+            data << uint8(0);                               // Heroic Mod Group - unused in vanilla
         }
 
         session->SendPacket(data);
@@ -794,21 +811,6 @@ void Group::BroadcastReadyCheck(WorldPacket const& packet) const
         if (pl && pl->GetSession())
             if (IsLeader(pl->GetObjectGuid()) || IsAssistant(pl->GetObjectGuid()))
                 pl->GetSession()->SendPacket(packet);
-    }
-}
-
-void Group::OfflineReadyCheck()
-{
-    for (member_citerator citr = m_memberSlots.begin(); citr != m_memberSlots.end(); ++citr)
-    {
-        Player* pl = sObjectMgr.GetPlayer(citr->guid);
-        if (!pl || !pl->GetSession())
-        {
-            WorldPacket data(MSG_RAID_READY_CHECK_CONFIRM, 9);
-            data << citr->guid;
-            data << uint8(0);
-            BroadcastReadyCheck(data);
-        }
     }
 }
 

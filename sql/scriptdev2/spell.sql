@@ -28,6 +28,7 @@ INSERT INTO spell_scripts(Id, ScriptName) VALUES
 (5166,'spell_harvest_silithid_egg'),
 (6467,'spell_unarmed_woodcutter'),
 (7054,'spell_forsaken_skill'),
+(7131,'spell_illusion_passive'),
 (8555,'spell_left_for_dead'),
 (8603,'spell_tribal_death'),
 (8655,'spell_tribal_death'),
@@ -49,6 +50,7 @@ INSERT INTO spell_scripts(Id, ScriptName) VALUES
 (11889,'spell_capture_mountain_giant'),
 (11610,'spell_gammerita_turtle_camera'),
 (12479,'spell_hex_of_jammalan'),
+(13258,'spell_summon_goblin_bomb'),
 (16380,'spell_greater_invisibility_mob'),
 (17016,'spell_placing_beacon_torch'),
 (17244,'spell_anastari_possess'),
@@ -60,6 +62,7 @@ INSERT INTO spell_scripts(Id, ScriptName) VALUES
 (20038,'spell_explosion_razorgore'),
 (21651,'spell_opening_capping'),
 (22858,'spell_retaliation_creature'),
+(23134,'spell_goblin_bomb'),
 (23226,'spell_ritual_candle_aura'),
 (24228,'spell_arlokk_vanish'),
 (24314,'spell_threatening_gaze'),
@@ -107,6 +110,7 @@ INSERT INTO spell_scripts(Id, ScriptName) VALUES
 (26767,'spell_cthun_tentacles_summon'),
 (26769,'spell_cthun_periodic_eye_trigger'),
 (27360,'spell_instill_lord_valthalaks_spirit'),
+(27673,'spell_five_fat_finger_exploding_heart_technique'),
 (28006,'spell_arcane_cloaking'),
 (28282,'spell_ashbringer_item'),
 (27808,'spell_kel_thuzad_frost_blast'),
@@ -220,10 +224,16 @@ INSERT INTO spell_scripts(Id, ScriptName) VALUES
 (20308,'spell_seal_of_the_crusader'),
 (5373,'spell_judgement_of_light_intermediate'),
 (1826,'spell_judgement_of_wisdom_intermediate'),
+(19752,'spell_divine_intervention'),
 (19977,'spell_blessing_of_light'),
 (19978,'spell_blessing_of_light'),
 (19979,'spell_blessing_of_light'),
-(20271,'spell_judgement');
+(20271,'spell_judgement'),
+(20467,'spell_judgement_of_command'),
+(20963,'spell_judgement_of_command'),
+(20964,'spell_judgement_of_command'),
+(20965,'spell_judgement_of_command'),
+(20966,'spell_judgement_of_command');
 
 -- Warlock
 INSERT INTO spell_scripts(Id, ScriptName) VALUES
@@ -241,6 +251,11 @@ INSERT INTO spell_scripts(Id, ScriptName) VALUES
 (11687,'spell_life_tap'),
 (11688,'spell_life_tap'),
 (11689,'spell_life_tap'),
+(6201,'spell_create_health_stone_warlock'),
+(6202,'spell_create_health_stone_warlock'),
+(5699,'spell_create_health_stone_warlock'),
+(11729,'spell_create_health_stone_warlock'),
+(11730,'spell_create_health_stone_warlock'),
 (19505,'spell_devour_magic'),
 (19731,'spell_devour_magic'),
 (19734,'spell_devour_magic'),
@@ -274,10 +289,20 @@ INSERT INTO spell_scripts(Id, ScriptName) VALUES
 (8427,'spell_blizzard'),
 (10185,'spell_blizzard'),
 (10186,'spell_blizzard'),
-(10187,'spell_blizzard');
+(10187,'spell_blizzard'),
+(543,'spell_fire_ward_mage'),
+(8457,'spell_fire_ward_mage'),
+(8458,'spell_fire_ward_mage'),
+(10223,'spell_fire_ward_mage'),
+(10225,'spell_fire_ward_mage'),
+(6143,'spell_frost_ward_mage'),
+(8461,'spell_frost_ward_mage'),
+(8462,'spell_frost_ward_mage'),
+(10177,'spell_frost_ward_mage');
 
 -- Druid
 INSERT INTO spell_scripts(Id, ScriptName) VALUES
+(18562,'spell_swiftmend'),
 (5215,'spell_stealth'),
 (6783,'spell_stealth'),
 (9913,'spell_stealth'),
@@ -315,6 +340,9 @@ INSERT INTO spell_scripts(Id, ScriptName) VALUES
 -- Shaman
 INSERT INTO spell_scripts(Id, ScriptName) VALUES
 (29203,'spell_healing_way'),
+(8516,'spell_windfury_totem_aura'),
+(10608,'spell_windfury_totem_aura'),
+(10610,'spell_windfury_totem_aura'),
 (6495,'spell_sentry_totem');
 
 -- Hunter

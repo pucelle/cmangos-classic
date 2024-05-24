@@ -730,18 +730,17 @@ void BattleGround::EndBattleGround(Team winner)
     {
         static SqlStatementID insPvPstatsBattleground;
 
-        SqlStatement stmt = CharacterDatabase.CreateStatement(insPvPstatsBattleground, "INSERT INTO pvpstats_battlegrounds (id, winner_team, bracket_id, type, date) VALUES (?, ?, ?, ?, NOW())");
+        SqlStatement stmt = CharacterDatabase.CreateStatement(insPvPstatsBattleground, "INSERT INTO pvpstats_battlegrounds (id, winner_team, bracket_id, type, date) VALUES (?, ?, ?, ?, " _NOW_ ")");
 
         uint8 battleground_bracket = GetMinLevel() / 10;
         uint8 battleground_type = (uint8)GetTypeId();
 
         // query next id
-        QueryResult* result = CharacterDatabase.Query("SELECT MAX(id) FROM pvpstats_battlegrounds");
-        if (result)
+        auto queryResult = CharacterDatabase.Query("SELECT MAX(id) FROM pvpstats_battlegrounds");
+        if (queryResult)
         {
-            Field* fields = result->Fetch();
+            Field* fields = queryResult->Fetch();
             battleground_id = fields[0].GetUInt64() + 1;
-            delete result;
         }
 
         stmt.PExecute(battleground_id, bgScoresWinner, battleground_bracket, battleground_type);
@@ -1462,6 +1461,23 @@ uint32 BattleGround::GetSingleCreatureGuid(uint8 event1, uint8 event2)
     auto itr = m_eventObjects[MAKE_PAIR32(event1, event2)].creatures.begin();
     if (itr != m_eventObjects[MAKE_PAIR32(event1, event2)].creatures.end())
         return *itr;
+
+    return ObjectGuid();
+}
+
+/**
+  Function returns a gameobject guid from event map
+
+  @param    event1
+  @param    event2
+*/
+uint32 BattleGround::GetSingleGameObjectGuid(uint8 event1, uint8 event2)
+{
+    auto itr = m_eventObjects[MAKE_PAIR32(event1, event2)].gameobjects.begin();
+    if (itr != m_eventObjects[MAKE_PAIR32(event1, event2)].gameobjects.end())
+    {
+        return *itr;
+    }
 
     return ObjectGuid();
 }

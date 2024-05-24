@@ -23,7 +23,7 @@ DROP TABLE IF EXISTS `db_version`;
 CREATE TABLE `db_version` (
   `version` varchar(120) DEFAULT NULL,
   `creature_ai_version` varchar(120) DEFAULT NULL,
-  `required_z2815_01_mangos_pursuit` bit(1) DEFAULT NULL
+  `required_z2824_01_mangos_model_unification` bit(1) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 ROW_FORMAT=DYNAMIC COMMENT='Used DB version notes';
 
 --
@@ -720,10 +720,10 @@ CREATE TABLE `creature` (
   `id` mediumint(8) unsigned NOT NULL DEFAULT '0' COMMENT 'Creature Identifier',
   `map` smallint(5) unsigned NOT NULL DEFAULT '0' COMMENT 'Map Identifier',
   `spawnMask` tinyint(3) unsigned NOT NULL DEFAULT '1',
-  `position_x` float NOT NULL DEFAULT '0',
-  `position_y` float NOT NULL DEFAULT '0',
-  `position_z` float NOT NULL DEFAULT '0',
-  `orientation` float NOT NULL DEFAULT '0',
+  `position_x` DECIMAL(40,20) NOT NULL DEFAULT '0',
+  `position_y` DECIMAL(40,20) NOT NULL DEFAULT '0',
+  `position_z` DECIMAL(40,20) NOT NULL DEFAULT '0',
+  `orientation` DECIMAL(40,20) NOT NULL DEFAULT '0',
   `spawntimesecsmin` int(10) unsigned NOT NULL DEFAULT '120' COMMENT 'Creature respawn time minimum',
   `spawntimesecsmax` int(10) unsigned NOT NULL DEFAULT '120' COMMENT 'Creature respawn time maximum',
   `spawndist` float NOT NULL DEFAULT '5',
@@ -1074,7 +1074,7 @@ CREATE TABLE `creature_model_info` (
   `SpeedRun` FLOAT NOT NULL DEFAULT '1.14286' COMMENT 'Default running speed for any creature with model',
   `gender` tinyint(3) unsigned NOT NULL DEFAULT '2',
   `modelid_other_gender` mediumint(8) unsigned NOT NULL DEFAULT '0',
-  `modelid_other_team` mediumint(8) unsigned NOT NULL DEFAULT '0',
+  `modelid_alternative` mediumint(8) unsigned NOT NULL DEFAULT '0',
   PRIMARY KEY (`modelid`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COMMENT='Creature System (Model related info)';
 
@@ -1219,10 +1219,14 @@ CREATE TABLE `creature_template` (
   `SubName` char(100) DEFAULT NULL,
   `MinLevel` tinyint(3) unsigned NOT NULL DEFAULT '1',
   `MaxLevel` tinyint(3) unsigned NOT NULL DEFAULT '1',
-  `ModelId1` mediumint(8) unsigned NOT NULL DEFAULT '0',
-  `ModelId2` mediumint(8) unsigned NOT NULL DEFAULT '0',
-  `ModelId3` mediumint(8) unsigned NOT NULL DEFAULT '0',
-  `ModelId4` mediumint(8) unsigned NOT NULL DEFAULT '0',
+  `DisplayId1` mediumint(8) unsigned NOT NULL DEFAULT '0',
+  `DisplayId2` mediumint(8) unsigned NOT NULL DEFAULT '0',
+  `DisplayId3` mediumint(8) unsigned NOT NULL DEFAULT '0',
+  `DisplayId4` mediumint(8) unsigned NOT NULL DEFAULT '0',
+  `DisplayIdProbability1` SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  `DisplayIdProbability2` SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  `DisplayIdProbability3` SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  `DisplayIdProbability4` SMALLINT UNSIGNED NOT NULL DEFAULT 0,
   `Faction` smallint(5) unsigned NOT NULL DEFAULT '0',
   `Scale` float NOT NULL DEFAULT '1',
   `Family` tinyint(4) NOT NULL DEFAULT '0',
@@ -1254,6 +1258,11 @@ CREATE TABLE `creature_template` (
   `DamageVariance` float NOT NULL DEFAULT '1',
   `ArmorMultiplier` float NOT NULL DEFAULT '1',
   `ExperienceMultiplier` float NOT NULL DEFAULT '1',
+  `StrengthMultiplier` float NOT NULL DEFAULT '1',
+  `AgilityMultiplier` float NOT NULL DEFAULT '1',
+  `StaminaMultiplier` float NOT NULL DEFAULT '1',
+  `IntellectMultiplier` float NOT NULL DEFAULT '1',
+  `SpiritMultiplier` float NOT NULL DEFAULT '1',
   `MinLevelHealth` int(10) unsigned NOT NULL DEFAULT '0',
   `MaxLevelHealth` int(10) unsigned NOT NULL DEFAULT '0',
   `MinLevelMana` int(10) unsigned NOT NULL DEFAULT '0',
@@ -1297,6 +1306,7 @@ CREATE TABLE `creature_template` (
   `Civilian` tinyint(3) unsigned NOT NULL DEFAULT '0',
   `CorpseDecay` INT UNSIGNED NOT NULL DEFAULT '0' COMMENT 'Time before corpse despawns',
   `SpellList` INT NOT NULL DEFAULT '0' COMMENT 'creature_spell_list_entry',
+  `CharmedSpellList` INT NOT NULL DEFAULT '0' COMMENT 'creature_spell_list_entry during charm',
   `StringId1` INT(11) UNSIGNED NOT NULL DEFAULT '0',
   `StringId2` INT(11) UNSIGNED NOT NULL DEFAULT '0',
   `AIName` char(64) NOT NULL DEFAULT '',
@@ -1311,7 +1321,7 @@ CREATE TABLE `creature_template` (
 LOCK TABLES `creature_template` WRITE;
 /*!40000 ALTER TABLE `creature_template` DISABLE KEYS */;
 INSERT INTO `creature_template` VALUES
-(1,'Waypoint (Only GM can see it)','Visual',63,63,10045,0,0,0,35,0,8,8,7,1,0,0,4096,0,130,5242886,0,0,0,0,0.91,1.14286,20,0,0,0,0,0,3,1,1,1,1,1,1,9999,9999,0,0,7,7,1.76,2.42,0,3,100,2000,2200,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,-1,0,0,0,0,0,0,'','');
+(1,'Waypoint (Only GM can see it)','Visual',63,63,10045,0,0,0,100,0,0,0,35,0,8,8,7,1,0,0,4096,0,130,5242886,0,0,0,0,0.91,1.14286,20,0,0,0,0,0,3,1,1,1,1,1,1,1,1,1,1,1,9999,9999,0,0,7,7,1.76,2.42,0,3,100,2000,2200,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,-1,0,0,0,0,0,0,0,'','');
 /*!40000 ALTER TABLE `creature_template` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -1912,14 +1922,14 @@ CREATE TABLE `gameobject` (
   `id` mediumint(8) unsigned NOT NULL DEFAULT '0' COMMENT 'Gameobject Identifier',
   `map` smallint(5) unsigned NOT NULL DEFAULT '0' COMMENT 'Map Identifier',
   `spawnMask` tinyint(3) unsigned NOT NULL DEFAULT '1',
-  `position_x` float NOT NULL DEFAULT '0',
-  `position_y` float NOT NULL DEFAULT '0',
-  `position_z` float NOT NULL DEFAULT '0',
-  `orientation` float NOT NULL DEFAULT '0',
-  `rotation0` float NOT NULL DEFAULT '0',
-  `rotation1` float NOT NULL DEFAULT '0',
-  `rotation2` float NOT NULL DEFAULT '0',
-  `rotation3` float NOT NULL DEFAULT '0',
+  `position_x` DECIMAL(40,20) NOT NULL DEFAULT '0',
+  `position_y` DECIMAL(40,20) NOT NULL DEFAULT '0',
+  `position_z` DECIMAL(40,20) NOT NULL DEFAULT '0',
+  `orientation` DECIMAL(40,20) NOT NULL DEFAULT '0',
+  `rotation0` DECIMAL(40,20) NOT NULL DEFAULT '0',
+  `rotation1` DECIMAL(40,20) NOT NULL DEFAULT '0',
+  `rotation2` DECIMAL(40,20) NOT NULL DEFAULT '0',
+  `rotation3` DECIMAL(40,20) NOT NULL DEFAULT '0',
   `spawntimesecsmin` int(11) NOT NULL DEFAULT '0' COMMENT 'GameObject respawn time minimum',
   `spawntimesecsmax` int(11) NOT NULL DEFAULT '0' COMMENT 'Gameobject respawn time maximum',
   PRIMARY KEY (`guid`),

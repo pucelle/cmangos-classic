@@ -18,7 +18,7 @@
 
 #include <stdarg.h>
 #include "Common.h"
-#include "Log.h"
+#include "Log/Log.h"
 #include "Server/WorldPacket.h"
 #include "Database/DatabaseEnv.h"
 #include "PlayerbotAI.h"
@@ -4415,9 +4415,9 @@ Unit* PlayerbotAI::FindAttacker(ATTACKERINFOTYPE ait, Unit* victim)
 */
 void PlayerbotAI::BotDataRestore()
 {
-    QueryResult* result = CharacterDatabase.PQuery("SELECT combat_delay,autoequip FROM playerbot_saved_data WHERE guid = '%u'", m_bot->GetGUIDLow());
+    auto queryResult = CharacterDatabase.PQuery("SELECT combat_delay,autoequip FROM playerbot_saved_data WHERE guid = '%u'", m_bot->GetGUIDLow());
 
-    if (!result)
+    if (!queryResult)
     {
         CharacterDatabase.DirectPExecute("INSERT INTO playerbot_saved_data (guid,combat_order,primary_target,secondary_target,pname,sname,combat_delay,autoequip) VALUES ('%u',0,0,0,'','',0,0)", m_bot->GetObjectGuid().GetCounter());
         m_DelayAttack = 0;
@@ -4426,10 +4426,9 @@ void PlayerbotAI::BotDataRestore()
     }
     else
     {
-        Field* fields = result->Fetch();
+        Field* fields = queryResult->Fetch();
         m_DelayAttack = fields[0].GetUInt8();
         m_AutoEquipToggle = fields[1].GetBool();
-        delete result;
     }
 }
 
@@ -4440,9 +4439,9 @@ void PlayerbotAI::BotDataRestore()
 
 void PlayerbotAI::CombatOrderRestore()
 {
-    QueryResult* result = CharacterDatabase.PQuery("SELECT combat_order,primary_target,secondary_target,pname,sname,combat_delay,auto_follow FROM playerbot_saved_data WHERE guid = '%u'", m_bot->GetGUIDLow());
+    auto queryResult = CharacterDatabase.PQuery("SELECT combat_order,primary_target,secondary_target,pname,sname,combat_delay,auto_follow FROM playerbot_saved_data WHERE guid = '%u'", m_bot->GetGUIDLow());
 
-    if (!result)
+    if (!queryResult)
     {
         sLog.outString();
         sLog.outString(">> [CombatOrderRestore()] Loaded `playerbot_saved_data`, found no match for guid %u.", m_bot->GetGUIDLow());
@@ -4450,7 +4449,7 @@ void PlayerbotAI::CombatOrderRestore()
         return;
     }
 
-    Field* fields = result->Fetch();
+    Field* fields = queryResult->Fetch();
     CombatOrderType combatOrders = (CombatOrderType)fields[0].GetUInt32();
     ObjectGuid PrimtargetGUID = ObjectGuid(fields[1].GetUInt64());
     ObjectGuid SectargetGUID = ObjectGuid(fields[2].GetUInt64());
@@ -4459,7 +4458,6 @@ void PlayerbotAI::CombatOrderRestore()
     m_DelayAttack = fields[5].GetUInt8();
     gPrimtarget = ObjectAccessor::GetUnit(*m_bot->GetMap()->GetWorldObject(PrimtargetGUID), PrimtargetGUID);
     gSectarget = ObjectAccessor::GetUnit(*m_bot->GetMap()->GetWorldObject(SectargetGUID), SectargetGUID);
-    delete result;
 
     //Unit* target = nullptr;
     //ObjectGuid NoTargetGUID = m_bot->GetObjectGuid();
@@ -5505,13 +5503,13 @@ SpellCastResult PlayerbotAI::Buff(uint32 spellId, Unit* target, void (*beforeCas
     if (spellId == 0)
         return SPELL_FAILED_NOT_KNOWN;
 
+    if (!target)
+        return SPELL_FAILED_BAD_IMPLICIT_TARGETS;
+
     SpellEntry const* spellProto = sSpellTemplate.LookupEntry<SpellEntry>(spellId);
 
     if (!spellProto)
         return SPELL_NOT_FOUND;
-
-    if (!target)
-        return SPELL_FAILED_BAD_IMPLICIT_TARGETS;
 
     // Select appropriate spell rank for target's level
     spellProto = sSpellMgr.SelectAuraRankForLevel(spellProto, target->GetLevel());
@@ -7414,14 +7412,14 @@ void PlayerbotAI::Repair(const uint32 itemid, Creature* rCreature)
 
 bool PlayerbotAI::RemoveAuction(const uint32 auctionid)
 {
-    QueryResult* result = CharacterDatabase.PQuery(
+    auto queryResult = CharacterDatabase.PQuery(
                               "SELECT houseid,itemguid,item_template,itemowner,buyoutprice,time,buyguid,lastbid,startbid,deposit FROM auction WHERE id = '%u'", auctionid);
 
     AuctionEntry* auction;
 
-    if (result)
+    if (queryResult)
     {
-        Field* fields = result->Fetch();
+        Field* fields = queryResult->Fetch();
 
         auction = new AuctionEntry;
         auction->Id = auctionid;
@@ -7445,7 +7443,6 @@ bool PlayerbotAI::RemoveAuction(const uint32 auctionid)
             auction->DeleteFromDB();
             sLog.outError("Auction %u has not a existing item : %u, deleted", auction->Id, auction->itemGuidLow);
             delete auction;
-            delete result;
             return false;
         }
 
@@ -7466,7 +7463,6 @@ bool PlayerbotAI::RemoveAuction(const uint32 auctionid)
         auction->DeleteFromDB();
 
         delete auction;
-        delete result;
     }
     return true;
 }
@@ -7680,14 +7676,14 @@ void PlayerbotAI::ListAuctions()
 {
     std::ostringstream report;
 
-    QueryResult* result = CharacterDatabase.PQuery(
+    auto queryResult = CharacterDatabase.PQuery(
                               "SELECT id,itemguid,item_template,time,buyguid,lastbid FROM auction WHERE itemowner = '%u'", m_bot->GetObjectGuid().GetCounter());
-    if (result)
+    if (queryResult)
     {
         report << "My active auctions are: \n";
         do
         {
-            Field* fields = result->Fetch();
+            Field* fields = queryResult->Fetch();
 
             uint32 Id = fields[0].GetUInt32();
             uint32 itemGuidLow = fields[1].GetUInt32();
@@ -7729,9 +7725,8 @@ void PlayerbotAI::ListAuctions()
                     report << " ends: " << aTm->tm_hour << "|cff0070dd|hH|h|r " << aTm->tm_min << "|cff0070dd|hmin|h|r";
             }
         }
-        while (result->NextRow());
+        while (queryResult->NextRow());
 
-        delete result;
         TellMaster(report.str().c_str());
     }
 }
@@ -8317,11 +8312,9 @@ void PlayerbotAI::_HandleCommandDo(std::string& text, Player& fromPlayer)
             return;
         }
 
-        QueryResult* resultlvl = CharacterDatabase.PQuery("SELECT guid FROM playerbot_saved_data WHERE guid = '%u'", m_bot->GetObjectGuid().GetCounter());
+        auto resultlvl = CharacterDatabase.PQuery("SELECT guid FROM playerbot_saved_data WHERE guid = '%u'", m_bot->GetObjectGuid().GetCounter());
         if (!resultlvl)
             CharacterDatabase.DirectPExecute("INSERT INTO playerbot_saved_data (guid,combat_order,primary_target,secondary_target,pname,sname,combat_delay,autoequip) VALUES ('%u',0,0,0,'','',0,0)", m_bot->GetObjectGuid().GetCounter());
-        else
-            delete resultlvl;
 
         size_t protect = text.find("protect");
         size_t assist = text.find("assist");
@@ -10429,7 +10422,6 @@ void PlayerbotAI::_HandleCommandSurvey(std::string& /*text*/, Player& fromPlayer
 {
     uint32 count = 0;
     std::ostringstream detectout;
-    QueryResult* result;
     GameEventMgr::ActiveEvents const& activeEventsList = sGameEventMgr.GetActiveEventList();
     std::ostringstream eventFilter;
     eventFilter << " AND (event IS NULL ";
@@ -10451,16 +10443,16 @@ void PlayerbotAI::_HandleCommandSurvey(std::string& /*text*/, Player& fromPlayer
     else
         eventFilter << ")";
 
-    result = WorldDatabase.PQuery("SELECT gameobject.guid, id, position_x, position_y, position_z, map, "
-                                  "(POW(position_x - %f, 2) + POW(position_y - %f, 2) + POW(position_z - %f, 2)) AS order_ FROM gameobject "
-                                  "LEFT OUTER JOIN game_event_gameobject on gameobject.guid=game_event_gameobject.guid WHERE map = '%i' %s ORDER BY order_ ASC LIMIT 10",
-                                  m_bot->GetPositionX(), m_bot->GetPositionY(), m_bot->GetPositionZ(), m_bot->GetMapId(), eventFilter.str().c_str());
+    auto queryResult = WorldDatabase.PQuery("SELECT gameobject.guid, id, position_x, position_y, position_z, map, "
+                                            "(POW(position_x - %f, 2) + POW(position_y - %f, 2) + POW(position_z - %f, 2)) AS order_ FROM gameobject "
+                                            "LEFT OUTER JOIN game_event_gameobject on gameobject.guid=game_event_gameobject.guid WHERE map = '%i' %s ORDER BY order_ ASC LIMIT 10",
+                                            m_bot->GetPositionX(), m_bot->GetPositionY(), m_bot->GetPositionZ(), m_bot->GetMapId(), eventFilter.str().c_str());
 
-    if (result)
+    if (queryResult)
     {
         do
         {
-            Field* fields = result->Fetch();
+            Field* fields = queryResult->Fetch();
             uint32 guid = fields[0].GetUInt32();
             uint32 entry = fields[1].GetUInt32();
 
@@ -10474,9 +10466,8 @@ void PlayerbotAI::_HandleCommandSurvey(std::string& /*text*/, Player& fromPlayer
             detectout << "|cFFFFFF00|Hfound:" << guid << ":" << entry  << ":" <<  "|h[" << go->GetGOInfo()->name << "]|h|r";
             ++count;
         }
-        while (result->NextRow());
+        while (queryResult->NextRow());
 
-        delete result;
     }
     SendWhisper(detectout.str().c_str(), fromPlayer);
 }

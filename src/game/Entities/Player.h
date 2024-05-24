@@ -58,9 +58,14 @@ class Spell;
 class Item;
 struct FactionTemplateEntry;
 
-#ifdef BUILD_PLAYERBOT
+#ifdef BUILD_DEPRECATED_PLAYERBOT
 #include "PlayerBot/Base/PlayerbotMgr.h"
 #include "PlayerBot/Base/PlayerbotAI.h"
+#endif
+
+#ifdef ENABLE_PLAYERBOTS
+class PlayerbotAI;
+class PlayerbotMgr;
 #endif
 
 struct AreaTrigger;
@@ -484,6 +489,9 @@ enum PlayerExtraFlags
     // other states
     PLAYER_EXTRA_PVP_DEATH          = 0x0100,                // store PvP death status until corpse creating.
     PLAYER_EXTRA_WHISP_RESTRICTION  = 0x0200,
+
+    // death prevention
+    PLAYER_EXTRA_GM_UNKILLABLE         = 0x0400,
 };
 
 // 2^n values
@@ -1071,6 +1079,8 @@ class Player : public Unit
         Item* GetItemByGuid(ObjectGuid guid) const;
         Item* GetItemByPos(uint16 pos) const;
         Item* GetItemByPos(uint8 bag, uint8 slot) const;
+        Item* GetItemByEntry(uint32 item) const;
+
         Item* GetWeaponForAttack(WeaponAttackType attackType) const { return GetWeaponForAttack(attackType, false, false); }
         Item* GetWeaponForAttack(WeaponAttackType attackType, bool nonbroken, bool useable) const;
         Item* GetShield(bool useable = false) const;
@@ -1184,7 +1194,7 @@ class Player : public Unit
 
         Player* GetTrader() const { return m_trade ? m_trade->GetTrader() : nullptr; }
         TradeData* GetTradeData() const { return m_trade; }
-        void TradeCancel(bool sendback);
+        void TradeCancel(bool sendback, TradeStatus status = TRADE_STATUS_TRADE_CANCELED);
 
         void UpdateEnchantTime(uint32 time);
         void UpdateItemDuration(uint32 time, bool realtimeonly = false);
@@ -1328,7 +1338,6 @@ class Player : public Unit
         void SendPushToPartyResponse(Player* pPlayer, uint32 msg) const;
         void SendQuestUpdateAddItem(Quest const* pQuest, uint32 item_idx, uint32 current, uint32 count);
         void SendQuestUpdateAddCreatureOrGo(Quest const* pQuest, ObjectGuid guid, uint32 creatureOrGO_idx, uint32 count);
-        void SendQuestGiverStatusMultiple() const;
 
         ObjectGuid GetDividerGuid() const { return m_dividerGuid; }
         void SetDividerGuid(ObjectGuid guid) { m_dividerGuid = guid; }
@@ -1341,7 +1350,7 @@ class Player : public Unit
         void AddTimedQuest(uint32 quest_id) { m_timedquests.insert(quest_id); }
         void RemoveTimedQuest(uint32 quest_id) { m_timedquests.erase(quest_id); }
 
-#ifdef BUILD_PLAYERBOT
+#ifdef BUILD_DEPRECATED_PLAYERBOT
         void chompAndTrim(std::string& str);
         bool getNextQuestId(const std::string& pString, unsigned int& pStartPos, unsigned int& pId);
         void skill(std::list<uint32>& m_spellsToLearn);
@@ -1466,7 +1475,6 @@ class Player : public Unit
 
         void SendProficiency(ItemClass itemClass, uint32 itemSubclassMask) const;
         void SendInitialSpells() const;
-        void SendUnlearnSpells() const;
         void SendSupercededSpell(uint32 oldSpell, uint32 newSpell) const;
         void SendRemovedSpell(uint32 spellId) const;
         bool addSpell(uint32 spell_id, bool active, bool learning, bool dependent, bool disabled);
@@ -1477,6 +1485,9 @@ class Player : public Unit
         void learnQuestRewardedSpells();
         void learnQuestRewardedSpells(Quest const* quest);
         void learnSpellHighRank(uint32 spellid);
+#ifdef ENABLE_PLAYERBOTS
+        void learnClassLevelSpells(bool includeHighLevelQuestRewards = false);
+#endif
 
         uint32 GetFreeTalentPoints() const { return GetUInt32Value(PLAYER_CHARACTER_POINTS1); }
         void SetFreeTalentPoints(uint32 points) { SetUInt32Value(PLAYER_CHARACTER_POINTS1, points); }
@@ -1583,15 +1594,10 @@ class Player : public Unit
         bool UpdateGatherSkill(uint32 SkillId, uint32 SkillValue, uint32 RedLevel, uint32 Multiplicator = 1);
         bool UpdateFishingSkill();
 
-        float GetHealthBonusFromStamina() const;
-        float GetManaBonusFromIntellect() const;
-
         bool UpdateStats(Stats stat) override;
         bool UpdateAllStats() override;
         void UpdateResistances(uint32 school) override;
         void UpdateArmor() override;
-        void UpdateMaxHealth() override;
-        void UpdateMaxPower(Powers power) override;
         void UpdateAttackPowerAndDamage(bool ranged = false) override;
         void UpdateDamagePhysical(WeaponAttackType attType) override;
         void UpdateSpellDamageBonus();
@@ -1608,10 +1614,14 @@ class Player : public Unit
         void UpdateAllCritPercentages();
         void UpdateParryPercentage();
         void UpdateDodgePercentage();
+        void UpdateWeaponHitChances(WeaponAttackType attType);
+        void UpdateSpellHitChances();
 
         void UpdateAllSpellCritChances();
         void UpdateSpellCritChance(uint32 school);
         void UpdateManaRegen();
+
+        void UpdateWeaponDependantStats(WeaponAttackType attType);
 
         ObjectGuid const& GetLootGuid() const { return m_lootGuid; }
         void SetLootGuid(ObjectGuid const& guid) { m_lootGuid = guid; }
@@ -1642,7 +1652,6 @@ class Player : public Unit
         void ResetInstances(InstanceResetMethod method);
         void SendResetInstanceSuccess(uint32 MapId) const;
         void SendResetInstanceFailed(uint32 reason, uint32 MapId) const;
-        void SendResetFailedNotify(uint32 mapid) const;
 
         bool SetPosition(float x, float y, float z, float orientation, bool teleport = false);
         void UpdateTerainEnvironmentFlags(Map* m, float x, float y, float z);
@@ -1717,6 +1726,7 @@ class Player : public Unit
         bool IsBeingTeleported() const { return m_semaphoreTeleport_Near || m_semaphoreTeleport_Far; }
         bool IsBeingTeleportedNear() const { return m_semaphoreTeleport_Near; }
         bool IsBeingTeleportedFar() const { return m_semaphoreTeleport_Far; }
+        bool IsDelayedResurrect() const { return m_DelayedOperations & DELAYED_RESURRECT_PLAYER; }
         void SetSemaphoreTeleportNear(bool semphsetting);
         void SetSemaphoreTeleportFar(bool semphsetting);
         void ProcessDelayedOperations();
@@ -2034,10 +2044,10 @@ class Player : public Unit
 
         bool isMovingOrTurning() const { return m_movementInfo.HasMovementFlag(movementOrTurningFlagsMask); }
 
-        bool CanSwim() const { return true; }
+        bool CanSwim() const override { return true; }
         bool CanFly() const override { return m_movementInfo.HasMovementFlag(MOVEFLAG_FLYING); }
-        bool CanWalk() const { return true; }
-        bool IsFlying() const { return false; }
+        bool CanWalk() const override { return true; }
+        bool IsFlying() const override { return false; }
         bool IsFreeFlying() const { return false; }
         bool IsSwimming() const { return m_movementInfo.HasMovementFlag(MOVEFLAG_SWIMMING); }
 
@@ -2167,7 +2177,7 @@ class Player : public Unit
 
         void SendMessageToPlayer(std::string const& message) const; // debugging purposes
 
-#ifdef BUILD_PLAYERBOT
+#ifdef BUILD_DEPRECATED_PLAYERBOT
         // A Player can either have a playerbotMgr (to manage its bots), or have playerbotAI (if it is a bot), or
         // neither. Code that enables bots must create the playerbotMgr and set it using SetPlayerbotMgr.
         void SetPlayerbotAI(PlayerbotAI* ai) { assert(!m_playerbotAI && !m_playerbotMgr); m_playerbotAI = ai; }
@@ -2178,18 +2188,35 @@ class Player : public Unit
         bool IsInDuel() const { return duel && duel->startTime != 0; }
 #endif
 
+#ifdef ENABLE_PLAYERBOTS
+        // A Player can either have a playerbotMgr (to manage its bots), or have playerbotAI (if it is a bot), or
+        // neither. Code that enables bots must create the playerbotMgr and set it using SetPlayerbotMgr.
+        void UpdateAI(const uint32 diff, bool minimal = false);
+        void CreatePlayerbotAI();
+        void RemovePlayerbotAI();
+        PlayerbotAI* GetPlayerbotAI() const { return m_playerbotAI.get(); }
+        void CreatePlayerbotMgr();
+        void RemovePlayerbotMgr();
+        PlayerbotMgr* GetPlayerbotMgr() const { return m_playerbotMgr.get(); }
+        void SetBotDeathTimer() { m_deathTimer = 0; }
+        bool isRealPlayer() const { return m_session && (m_session->GetRemoteAddress() != "disconnected/bot"); }
+#endif
+
         void SendLootError(ObjectGuid guid, LootError error) const;
+
+        void SetDeathPrevention(bool enable);
+        bool IsPreventingDeath() const override;
 
         // cooldown system
         virtual void AddGCD(SpellEntry const& spellEntry, uint32 forcedDuration = 0, bool updateClient = false) override;
         virtual void AddCooldown(SpellEntry const& spellEntry, ItemPrototype const* itemProto = nullptr, bool permanent = false, uint32 forcedDuration = 0, bool ignoreCat = false) override;
         virtual void RemoveSpellCooldown(SpellEntry const& spellEntry, bool updateClient = true) override;
         virtual void RemoveSpellCategoryCooldown(uint32 category, bool updateClient = true) override;
-        virtual void RemoveAllCooldowns(bool sendOnly = false);
+        virtual void RemoveAllCooldowns(bool sendOnly = false) override;
         virtual void LockOutSpells(SpellSchoolMask schoolMask, uint32 duration) override;
         void RemoveSpellLockout(SpellSchoolMask spellSchoolMask, std::set<uint32>* spellAlreadySent = nullptr);
         void SendClearCooldown(uint32 spell_id, Unit* target) const;
-        void _LoadSpellCooldowns(QueryResult* result);
+        void _LoadSpellCooldowns(std::unique_ptr<QueryResult> queryResult);
         void _SaveSpellCooldowns();
 
         template <typename F>
@@ -2222,6 +2249,9 @@ class Player : public Unit
         void SetSpellModSpell(Spell* spell);
 
         uint32 LookupHighestLearnedRank(uint32 spellId);
+
+        std::pair<uint32, bool> GetLastData() { return std::make_pair(m_lastDbGuid, m_lastGameObject); }
+        void SetLastData(uint32 dbGuid, bool gameobject) { m_lastDbGuid = dbGuid; m_lastGameObject = gameobject; }
     protected:
         /*********************************************************/
         /***               BATTLEGROUND SYSTEM                 ***/
@@ -2255,22 +2285,22 @@ class Player : public Unit
         /***                   LOAD SYSTEM                     ***/
         /*********************************************************/
 
-        void _LoadActions(QueryResult* result);
-        void _LoadAuras(QueryResult* result, uint32 timediff);
-        void _LoadBoundInstances(QueryResult* result);
-        void _LoadHonorCP(QueryResult* result);
-        void _LoadInventory(QueryResult* result, uint32 timediff);
-        void _LoadItemLoot(QueryResult* result);
-        void _LoadMails(QueryResult* result);
-        void _LoadMailedItems(QueryResult* result);
-        void _LoadQuestStatus(QueryResult* result);
-        void _LoadWeeklyQuestStatus(QueryResult* result);
-        void _LoadGroup(QueryResult* result);
-        void _LoadSkills(QueryResult* result);
-        void _LoadSpells(QueryResult* result);
-        bool _LoadHomeBind(QueryResult* result);
-        void _LoadBGData(QueryResult* result);
-        void _LoadForgottenSkills(QueryResult* result);
+        void _LoadActions(std::unique_ptr<QueryResult> queryResult);
+        void _LoadAuras(std::unique_ptr<QueryResult> queryResult, uint32 timediff);
+        void _LoadBoundInstances(std::unique_ptr<QueryResult> queryResult);
+        void _LoadHonorCP(std::unique_ptr<QueryResult> queryResult);
+        void _LoadInventory(std::unique_ptr<QueryResult> queryResult, uint32 timediff);
+        void _LoadItemLoot(std::unique_ptr<QueryResult> queryResult);
+        void _LoadMails(std::unique_ptr<QueryResult> queryResult);
+        void _LoadMailedItems(std::unique_ptr<QueryResult> queryResult);
+        void _LoadQuestStatus(std::unique_ptr<QueryResult> queryResult);
+        void _LoadWeeklyQuestStatus(std::unique_ptr<QueryResult> queryResult);
+        void _LoadGroup(std::unique_ptr<QueryResult> queryResult);
+        void _LoadSkills(std::unique_ptr<QueryResult> queryResult);
+        void _LoadSpells(std::unique_ptr<QueryResult> queryResult);
+        bool _LoadHomeBind(std::unique_ptr<QueryResult> queryResult);
+        void _LoadBGData(std::unique_ptr<QueryResult> queryResult);
+        void _LoadForgottenSkills(std::unique_ptr<QueryResult> queryResult);
         void _LoadIntoDataField(const char* data, uint32 startOffset, uint32 count);
         void _LoadCreatedInstanceTimers();
         void _SaveNewInstanceIdTimer();
@@ -2312,6 +2342,8 @@ class Player : public Unit
 
         inline uint32 GetMirrorTimerMaxDuration(MirrorTimer::Type timer) const;
         inline SpellAuraHolder const* GetMirrorTimerBuff(MirrorTimer::Type timer) const;
+
+        uint32 getCorpseReclaimDelayHelper(time_t deathExpirationTime, time_t time, bool pvp) const;
 
         /*********************************************************/
         /***                  HONOR SYSTEM                     ***/
@@ -2472,9 +2504,14 @@ class Player : public Unit
         MapReference m_mapRef;
         std::unique_ptr<PlayerMenu> m_playerMenu;
 
-#ifdef BUILD_PLAYERBOT
+#ifdef BUILD_DEPRECATED_PLAYERBOT
         PlayerbotAI* m_playerbotAI;
         PlayerbotMgr* m_playerbotMgr;
+#endif
+
+#ifdef ENABLE_PLAYERBOTS
+        std::unique_ptr<PlayerbotAI> m_playerbotAI;
+        std::unique_ptr<PlayerbotMgr> m_playerbotMgr;
 #endif
 
         // Homebind coordinates
@@ -2536,6 +2573,8 @@ class Player : public Unit
         uint8 m_fishingSteps;
 
         std::map<uint32, ItemSetEffect> m_itemSetEffects;
+
+        uint32 m_lastDbGuid; bool m_lastGameObject;
 };
 
 void AddItemsSetItem(Player* player, Item* item);

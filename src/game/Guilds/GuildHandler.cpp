@@ -21,7 +21,7 @@
 #include "Server/WorldSession.h"
 #include "World/World.h"
 #include "Globals/ObjectMgr.h"
-#include "Log.h"
+#include "Log/Log.h"
 #include "Server/Opcodes.h"
 #include "Guilds/Guild.h"
 #include "Guilds/GuildMgr.h"
@@ -765,16 +765,6 @@ void WorldSession::HandleSaveGuildEmblemOpcode(WorldPacket& recvPacket)
     SendSaveGuildEmblem(ERR_GUILDEMBLEM_SUCCESS);
 
     guild->Query(this);
-}
-
-void WorldSession::HandleGuildEventLogQueryOpcode(WorldPacket& /* recvPacket */)
-{
-    // empty
-    DEBUG_LOG("WORLD: Received (MSG_GUILD_EVENT_LOG_QUERY)");
-
-    if (uint32 GuildId = GetPlayer()->GetGuildId())
-        if (Guild* pGuild = sGuildMgr.GetGuildById(GuildId))
-            pGuild->DisplayGuildEventLog(this);
 }
 
 void WorldSession::SendSaveGuildEmblem(uint32 msg) const

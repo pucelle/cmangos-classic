@@ -30,7 +30,7 @@
 #include "GameEvents/GameEventMgr.h"
 #include "Pools/PoolManager.h"
 #include "Server/Opcodes.h"
-#include "Log.h"
+#include "Log/Log.h"
 #include "Loot/LootMgr.h"
 #include "Maps/MapManager.h"
 #include "AI/BaseAI/CreatureAI.h"
@@ -518,7 +518,9 @@ bool Creature::UpdateEntry(uint32 Entry, const CreatureData* data /*=nullptr*/, 
     uint32 faction = GetCreatureInfo()->Faction;
     if (data && data->spawnTemplate->faction)
         faction = data->spawnTemplate->faction;
-    setFaction(faction);
+    // update entry can occur during player vehicle ride - ignore faction change then
+    if (!HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PLAYER_CONTROLLED) && !hasUnitState(UNIT_STAT_POSSESSED))
+        setFaction(faction);
 
     SetDefaultGossipMenuId(GetCreatureInfo()->GossipMenuId);
 
@@ -540,6 +542,12 @@ bool Creature::UpdateEntry(uint32 Entry, const CreatureData* data /*=nullptr*/, 
     // we may need to append or remove additional flags
     if (HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IN_COMBAT))
         unitFlags |= UNIT_FLAG_IN_COMBAT;
+    if (HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PET_IN_COMBAT))
+        unitFlags |= UNIT_FLAG_PET_IN_COMBAT;
+    if (HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PLAYER_CONTROLLED))
+        unitFlags |= UNIT_FLAG_PLAYER_CONTROLLED;
+    if (HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_POSSESSED))
+        unitFlags |= UNIT_FLAG_POSSESSED;
 
     // TODO: Get rid of this by fixing DB data, seems to be static
     if (m_movementInfo.HasMovementFlag(MOVEFLAG_SWIMMING))
@@ -641,26 +649,25 @@ uint32 Creature::ChooseDisplayId(const CreatureInfo* cinfo, const CreatureData* 
 
     // use defaults from the template
     uint32 display_id = 0;
+    // pick based on probability
+    uint32 chanceTotal = 0;
+    for (uint32 i = 0; i < MAX_CREATURE_MODEL; ++i)
+        if (cinfo->DisplayId[i])
+            chanceTotal += cinfo->DisplayIdProbability[i];
 
-    // The follow decision tree needs to be updated if MAX_CREATURE_MODEL is changed.
-    static_assert(MAX_CREATURE_MODEL == 4, "Need to update model selection code for new or removed model fields");
-
-    // model selected here may be replaced with other_gender using own function
-    if (!cinfo->ModelId[1])
+    int32 roll = irand(0, std::max(int32(chanceTotal) - 1, 0)); // avoid 0
+    for (uint32 i = 0; i < MAX_CREATURE_MODEL; ++i)
     {
-        display_id = cinfo->ModelId[0];
-    }
-    else if (!cinfo->ModelId[2])
-    {
-        display_id = cinfo->ModelId[urand(0, 1)];
-    }
-    else if (!cinfo->ModelId[3])
-    {
-        display_id = cinfo->ModelId[urand(0, 2)];
-    }
-    else
-    {
-        display_id = cinfo->ModelId[urand(0, 3)];
+        if (cinfo->DisplayId[i])
+        {
+            if (roll < cinfo->DisplayIdProbability[i])
+            {
+                display_id = cinfo->DisplayId[i];
+                break;
+            }
+            else
+                roll -= cinfo->DisplayIdProbability[i];
+        }
     }
 
     // fail safe, we use creature entry 1 and make error
@@ -669,7 +676,7 @@ uint32 Creature::ChooseDisplayId(const CreatureInfo* cinfo, const CreatureData* 
         sLog.outErrorDb("Call customer support, ChooseDisplayId can not select native model for creature entry %u, model from creature entry 1 will be used instead.", cinfo->Entry);
 
         if (const CreatureInfo* creatureDefault = ObjectMgr::GetCreatureTemplate(1))
-            display_id = creatureDefault->ModelId[0];
+            display_id = creatureDefault->DisplayId[0];
     }
 
     return display_id;
@@ -1169,12 +1176,12 @@ void Creature::SaveToDB(uint32 mapid)
         // The following if-else assumes that there are 4 model fields and needs updating if this is changed.
         static_assert(MAX_CREATURE_MODEL == 4, "Need to update custom model check for new/removed model fields.");
 
-        if (displayId != cinfo->ModelId[0] && displayId != cinfo->ModelId[1] &&
-                displayId != cinfo->ModelId[2] && displayId != cinfo->ModelId[3])
+        if (displayId != cinfo->DisplayId[0] && displayId != cinfo->DisplayId[1] &&
+                displayId != cinfo->DisplayId[2] && displayId != cinfo->DisplayId[3])
         {
             for (int i = 0; i < MAX_CREATURE_MODEL && displayId; ++i)
-                if (cinfo->ModelId[i])
-                    if (CreatureModelInfo const* minfo = sObjectMgr.GetCreatureModelInfo(cinfo->ModelId[i]))
+                if (cinfo->DisplayId[i])
+                    if (CreatureModelInfo const* minfo = sObjectMgr.GetCreatureModelInfo(cinfo->DisplayId[i]))
                         if (displayId == minfo->modelid_other_gender)
                             displayId = 0;
         }
@@ -1258,6 +1265,15 @@ void Creature::SelectLevel(uint32 forcedLevel /*= USE_DEFAULT_DATABASE_LEVEL*/)
     float meleeAttackPwr = 0.f;
     float rangedAttackPwr = 0.f;
 
+    float healthMultiplier = 1.f;
+    float powerMultiplier = 1.f;
+
+    float strength = 0.f;
+    float agility = 0.f;
+    float stamina = 0.f;
+    float intellect = 0.f;
+    float spirit = 0.f;
+
     float damageMod = _GetDamageMod(rank);
     float damageMulti = cinfo->DamageMultiplier * damageMod;
     bool usedDamageMulti = false;
@@ -1300,13 +1316,17 @@ void Creature::SelectLevel(uint32 forcedLevel /*= USE_DEFAULT_DATABASE_LEVEL*/)
     {
         // Use Creature Stats to calculate stat values
 
-        // health
         if (cinfo->HealthMultiplier >= 0)
-            health = std::round(cCLS->BaseHealth * cinfo->HealthMultiplier);
+            health = cCLS->BaseHealth;
+        // health
+        if (cinfo->HealthMultiplier > 0)
+            healthMultiplier = cinfo->HealthMultiplier;
 
-        // mana
         if (cinfo->PowerMultiplier >= 0)
-            mana = std::round(cCLS->BaseMana * cinfo->PowerMultiplier);
+            mana = cCLS->BaseMana;
+        // mana
+        if (cinfo->PowerMultiplier > 0)
+            powerMultiplier = cinfo->PowerMultiplier;
 
         // armor
         if (cinfo->ArmorMultiplier >= 0)
@@ -1327,6 +1347,18 @@ void Creature::SelectLevel(uint32 forcedLevel /*= USE_DEFAULT_DATABASE_LEVEL*/)
             meleeAttackPwr = cCLS->BaseMeleeAttackPower;
             rangedAttackPwr = cCLS->BaseRangedAttackPower;
         }
+
+        // attributes
+        if (cinfo->StrengthMultiplier >= 0)
+            strength = cCLS->Strength * cinfo->StrengthMultiplier;
+        if (cinfo->AgilityMultiplier >= 0)
+            agility = cCLS->Agility * cinfo->AgilityMultiplier;
+        if (cinfo->StaminaMultiplier >= 0)
+            stamina = cCLS->Stamina * cinfo->StaminaMultiplier;
+        if (cinfo->IntellectMultiplier >= 0)
+            intellect = cCLS->Intellect * cinfo->IntellectMultiplier;
+        if (cinfo->SpiritMultiplier >= 0)
+            spirit = cCLS->Spirit * cinfo->SpiritMultiplier;
     }
 
     if (!usedDamageMulti || armor == -1.f) // some field needs to default to old db fields
@@ -1421,7 +1453,6 @@ void Creature::SelectLevel(uint32 forcedLevel /*= USE_DEFAULT_DATABASE_LEVEL*/)
     // health
     SetCreateHealth(health);
     SetMaxHealth(health);
-    SetHealth(health);
 
     // all power types
     for (int i = POWER_MANA; i <= POWER_HAPPINESS; ++i)
@@ -1445,7 +1476,6 @@ void Creature::SelectLevel(uint32 forcedLevel /*= USE_DEFAULT_DATABASE_LEVEL*/)
 
         // Mana requires an extra field to be set
         SetMaxPower(Powers(i), maxValue);
-        SetPower(Powers(i), value);
 
         if (i == POWER_MANA)
             SetCreateMana(value);
@@ -1468,7 +1498,22 @@ void Creature::SelectLevel(uint32 forcedLevel /*= USE_DEFAULT_DATABASE_LEVEL*/)
     SetModifierValue(UNIT_MOD_ATTACK_POWER, BASE_VALUE, meleeAttackPwr * damageMod);
     SetModifierValue(UNIT_MOD_ATTACK_POWER_RANGED, BASE_VALUE, rangedAttackPwr * damageMod);
 
+    // primary attributes
+    SetCreateStat(STAT_STRENGTH, strength);
+    SetCreateStat(STAT_AGILITY, agility);
+    SetCreateStat(STAT_STAMINA, stamina);
+    SetCreateStat(STAT_INTELLECT, intellect);
+    SetCreateStat(STAT_SPIRIT, spirit);
+
+    // multipliers
+    SetModifierValue(UNIT_MOD_HEALTH, TOTAL_PCT, healthMultiplier);
+    SetModifierValue(UnitMods(UNIT_MOD_MANA + (int)GetPowerType()), TOTAL_PCT, powerMultiplier);
+
     UpdateAllStats();
+
+    SetHealth(GetMaxHealth());
+    for (int i = POWER_MANA; i <= POWER_HAPPINESS; ++i)
+        SetPower(Powers(i), GetMaxPower(Powers(i)));
 }
 
 float Creature::_GetHealthMod(int32 Rank)
@@ -1663,7 +1708,8 @@ bool Creature::LoadFromDB(uint32 dbGuid, Map* map, uint32 newGuid, uint32 forced
         m_respawnDelay *= sWorld.getConfig(CONFIG_GAME_ENHANCE_RARE_RESPAWN_TIME_RATE);
     }
 
-    if (!IsUsingNewSpawningSystem())
+    bool isUsingNewSpawningSystem = IsUsingNewSpawningSystem();
+    if (!isUsingNewSpawningSystem)
         m_corpseDelay = std::min(m_respawnDelay * 9 / 10, m_corpseDelay); // set corpse delay to 90% of the respawn delay
     m_deathState = ALIVE;
 
@@ -1671,6 +1717,10 @@ bool Creature::LoadFromDB(uint32 dbGuid, Map* map, uint32 newGuid, uint32 forced
 
     if (m_respawnTime > time(nullptr))                         // not ready to respawn
     {
+        if (isUsingNewSpawningSystem && !group) // only at this point we know if marked as dynguid per entry
+        {
+            return false;
+        }
         m_deathState = DEAD;
         SetHealth(0);
         if (CanFly())
@@ -1863,7 +1913,7 @@ void Creature::SetDeathState(DeathState s)
         {
             m_respawnTime = std::numeric_limits<time_t>::max();
             if (m_respawnDelay && s == JUST_DIED && !GetCreatureGroup())
-                GetMap()->GetSpawnManager().AddCreature(m_respawnDelay, GetDbGuid());
+                GetMap()->GetSpawnManager().AddCreature(GetDbGuid());
         }
     }
 
@@ -2355,6 +2405,16 @@ void Creature::UpdateSpell(int32 index, int32 newSpellId)
 
 void Creature::SetSpellList(uint32 spellSet)
 {
+    if (spellSet == 0)
+    {
+        m_spellList.Disabled = true;
+        m_spellList.Spells.clear();
+
+        if (AI())
+            AI()->SpellListChanged();
+        return;
+    }
+
     // Try difficulty dependent version before falling back to base entry
     auto spellList = GetMap()->GetMapDataContainer().GetCreatureSpellList(spellSet);
     if (!spellList)
@@ -2657,54 +2717,6 @@ void Creature::FillGuidsListFromThreatList(GuidVector& guids, uint32 maxamount /
         guids.push_back((*itr)->getUnitGuid());
 }
 
-struct AddCreatureToRemoveListInMapsWorker
-{
-    AddCreatureToRemoveListInMapsWorker(uint32 dbGuid) : i_guid(dbGuid) {}
-
-    void operator()(Map* map)
-    {
-        if (Creature* pCreature = map->GetCreature(i_guid))
-            pCreature->AddObjectToRemoveList();
-    }
-
-    uint32 i_guid;
-};
-
-void Creature::AddToRemoveListInMaps(uint32 db_guid, CreatureData const* data)
-{
-    AddCreatureToRemoveListInMapsWorker worker(db_guid);
-    sMapMgr.DoForAllMapsWithMapId(data->mapid, worker);
-}
-
-struct SpawnCreatureInMapsWorker
-{
-    SpawnCreatureInMapsWorker(uint32 guid, CreatureData const* data)
-        : i_guid(guid), i_data(data) {}
-
-    void operator()(Map* map)
-    {
-        // We use spawn coords to spawn
-        if (map->IsLoaded(i_data->posX, i_data->posY))
-        {
-            Creature* pCreature = new Creature;
-            // DEBUG_LOG("Spawning creature %u",*itr);
-            if (!pCreature->LoadFromDB(i_guid, map, i_guid, 0))
-            {
-                delete pCreature;
-            }
-        }
-    }
-
-    uint32 i_guid;
-    CreatureData const* i_data;
-};
-
-void Creature::SpawnInMaps(uint32 db_guid, CreatureData const* data)
-{
-    SpawnCreatureInMapsWorker worker(db_guid, data);
-    sMapMgr.DoForAllMapsWithMapId(data->mapid, worker);
-}
-
 bool Creature::HasStaticDBSpawnData() const
 {
     if (GetObjectGuid().GetHigh() == HIGHGUID_PET)
@@ -2876,7 +2888,7 @@ void Creature::SetBaseRunSpeed(float speed, bool force)
 
 void Creature::LockOutSpells(SpellSchoolMask schoolMask, uint32 duration)
 {
-    if (GetCreatureInfo()->MechanicImmuneMask & (1 << (MECHANIC_SILENCE - 1)))
+    if (m_settings.HasFlag(CreatureStaticFlags2::NO_INTERRUPT_SCHOOL_COOLDOWN))
         return;
 
     WorldObject::LockOutSpells(schoolMask, duration);
@@ -3098,7 +3110,6 @@ void Creature::AddCooldown(SpellEntry const& spellEntry, ItemPrototype const* /*
                 // send to client
                 WorldPacket data(SMSG_SPELL_COOLDOWN, 8 + 1 + 4);
                 data << GetObjectGuid();
-                // data << uint8(1);
                 data << uint32(spellEntry.Id);
                 data << uint32(recTime);
                 player->GetSession()->SendPacket(data);

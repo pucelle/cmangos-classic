@@ -580,6 +580,7 @@ inline bool IsSpellRemovedOnEvade(SpellEntry const* spellInfo)
         case 12627:         // Disease Cloud
         case 12787:         // Thrash
         case 12898:         // Smoke Aura Visual
+        case 13260:         // Pet Bomb Passive
         case 13299:         // Poison Proc
         case 13616:         // Wracking Pains Proc
         case 13767:         // Hate to Zero (Hate to Zero)
@@ -1437,7 +1438,12 @@ inline bool IsIgnoreLosSpell(SpellEntry const* spellInfo)
     return spellInfo->HasAttribute(SPELL_ATTR_EX2_IGNORE_LINE_OF_SIGHT);
 }
 
-inline bool IsIgnoreLosSpellEffect(SpellEntry const* spellInfo, SpellEffectIndex effIdx)
+inline bool IsIgnoreLosSpellCast(SpellEntry const* spellInfo)
+{
+    return spellInfo->rangeIndex == 13 || IsIgnoreLosSpell(spellInfo);
+}
+
+inline bool IsIgnoreLosSpellEffect(SpellEntry const* spellInfo, SpellEffectIndex effIdx, bool targetB)
 {
     // TODO: Move this to target logic
     switch (spellInfo->EffectImplicitTargetA[effIdx])
@@ -1446,15 +1452,13 @@ inline bool IsIgnoreLosSpellEffect(SpellEntry const* spellInfo, SpellEffectIndex
         case TARGET_UNIT_FRIEND_AND_PARTY:
         case TARGET_UNIT_RAID_AND_CLASS:
         case TARGET_ENUM_UNITS_PARTY_WITHIN_CASTER_RANGE: return true;
-        default: break;
+        default:
+            if (IsCheckCastTarget(targetB ? spellInfo->EffectImplicitTargetB[effIdx] : spellInfo->EffectImplicitTargetA[effIdx]))
+                return IsIgnoreLosSpellCast(spellInfo);
+            break;
     }
 
     return spellInfo->EffectRadiusIndex[effIdx] == 28 || IsIgnoreLosSpell(spellInfo);
-}
-
-inline bool IsIgnoreLosSpellCast(SpellEntry const* spellInfo)
-{
-    return spellInfo->rangeIndex == 13 || IsIgnoreLosSpell(spellInfo);
 }
 
 inline bool NeedsComboPoints(SpellEntry const* spellInfo)
@@ -2059,15 +2063,15 @@ enum ProcFlagsEx
     PROC_EX_DEFLECT             = 0x0000200,
     PROC_EX_ABSORB              = 0x0000400,
     PROC_EX_REFLECT             = 0x0000800,
-    PROC_EX_INTERRUPT           = 0x0001000,                // Melee hit result can be Interrupt (not used)
+    PROC_EX_INTERRUPT           = 0x0001000,                // melee hit result can be Interrupt (not used)
     PROC_EX_RESERVED1           = 0x0002000,
     PROC_EX_RESERVED2           = 0x0004000,
     PROC_EX_RESERVED3           = 0x0008000,
-    PROC_EX_EX_TRIGGER_ALWAYS   = 0x0010000,                // If set trigger always ( no matter another flags) used for drop charges
-    PROC_EX_EX_ONE_TIME_TRIGGER = 0x0020000,                // If set trigger always but only one time (not used)
-    PROC_EX_PERIODIC_POSITIVE   = 0x0040000,                // For periodic heal
+    PROC_EX_EX_TRIGGER_ON_NO_DAMAGE = 0x0010000,            // if set, hits trigger even if no damage/healing is dealt
+    PROC_EX_EX_ONE_TIME_TRIGGER = 0x0020000,                // if set trigger always but only one time (not used)
+    PROC_EX_PERIODIC_POSITIVE   = 0x0040000,                // for periodic heal
     PROC_EX_CAST_END            = 0x0080000,                // procs on end of cast
-    PROC_EX_MAGNET              = 0x0100000,                // For grounding totem hit
+    PROC_EX_MAGNET              = 0x0100000,                // for grounding totem hit
 
     // Flags for internal use - do not use these in db!
     PROC_EX_INTERNAL_HOT        = 0x2000000
@@ -2085,16 +2089,7 @@ struct SpellProcEventEntry
     uint32      cooldown;                                   // hidden cooldown used for some spell proc events, applied to _triggered_spell_
 };
 
-struct SpellBonusEntry
-{
-    float  direct_damage;
-    float  dot_damage;
-    float  ap_bonus;
-    float  ap_dot_bonus;
-};
-
 typedef std::unordered_map<uint32, SpellProcEventEntry> SpellProcEventMap;
-typedef std::unordered_map<uint32, SpellBonusEntry>     SpellBonusMap;
 
 #define ELIXIR_FLASK_MASK     0x03                          // 2 bit mask for batter compatibility with more recent client version, flaks must have both bits set
 #define ELIXIR_WELL_FED       0x10                          // Some foods have SPELLFAMILY_POTION
@@ -2281,7 +2276,6 @@ typedef std::map<uint32, uint32> SpellFacingFlagMap;
 
 class SpellMgr
 {
-        friend struct DoSpellBonuses;
         friend struct DoSpellProcEvent;
         friend struct DoSpellProcItemEnchant;
 
@@ -2533,17 +2527,6 @@ class SpellMgr
         }
 
         static bool IsSpellProcEventCanTriggeredBy(SpellProcEventEntry const* spellProcEvent, uint32 EventProcFlag, SpellEntry const* spellInfo, uint32 procFlags, uint32 procExtra);
-
-        // Spell bonus data
-        SpellBonusEntry const* GetSpellBonusData(uint32 spellId) const
-        {
-            // Lookup data
-            SpellBonusMap::const_iterator itr = mSpellBonusMap.find(spellId);
-            if (itr != mSpellBonusMap.end())
-                return &itr->second;
-
-            return nullptr;
-        }
 
         uint32 GetSpellFacingFlag(uint32 spellId) const
         {
@@ -2863,7 +2846,6 @@ class SpellMgr
         void LoadSpellElixirs();
         void LoadSpellProcEvents();
         void LoadSpellProcItemEnchant();
-        void LoadSpellBonuses();
         void LoadSpellTargetPositions();
         void LoadSpellThreats();
         void LoadSkillLineAbilityMaps();
@@ -2883,7 +2865,6 @@ class SpellMgr
         SpellThreatMap     mSpellThreatMap;
         SpellProcEventMap  mSpellProcEventMap;
         SpellProcItemEnchantMap mSpellProcItemEnchantMap;
-        SpellBonusMap      mSpellBonusMap;
         SkillLineAbilityMap mSkillLineAbilityMapBySpellId;
         SkillLineAbilityMap mSkillLineAbilityMapBySkillId;
         SkillRaceClassInfoMap mSkillRaceClassInfoMap;

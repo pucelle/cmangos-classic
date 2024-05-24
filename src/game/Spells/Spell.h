@@ -146,6 +146,7 @@ class SpellCastTargets
         Corpse* getCorpseTarget() const { return m_CorpseTarget; }
 
         void setItemTarget(Item* item);
+        void clearItemPointer();
         ObjectGuid getItemTargetGuid() const { return m_itemTargetGUID; }
         Item* getItemTarget() const { return m_itemTarget; }
         uint32 getItemTargetEntry() const { return m_itemTargetEntry; }
@@ -475,7 +476,7 @@ class Spell
 
         int32 CalculateSpellEffectValue(SpellEffectIndex i, Unit* target, bool maximum = false, bool finalUse = true)
         { return m_trueCaster->CalculateSpellEffectValue(target, m_spellInfo, i, &m_currentBasePoints[i], maximum, finalUse); }
-        int32 CalculateSpellEffectDamage(Unit* unitTarget, int32 damage, float damageDoneMod);
+        int32 CalculateSpellEffectDamage(Unit* unitTarget, int32 damage, float damageDoneMod, SpellEffectIndex effectIndex);
         static uint32 CalculatePowerCost(SpellEntry const* spellInfo, Unit* caster, Spell* spell = nullptr, Item* castItem = nullptr, bool finalUse = false);
 
         bool HaveTargetsForEffect(SpellEffectIndex effect) const;
@@ -484,7 +485,6 @@ class Spell
         uint32 getState() const { return m_spellState; }
         void setState(uint32 state) { m_spellState = state; }
 
-        uint32 GetUsableHealthStoneItemType(Unit* unitTarget);
         bool DoCreateItem(SpellEffectIndex eff_idx, uint32 itemtype, bool reportError = true);
 
         void ProcessDispelList(std::list <std::pair<SpellAuraHolder*, uint32> >& dispelList, std::list<std::pair<SpellAuraHolder*, uint32> >& successList, std::list <uint32>& failList);
@@ -726,9 +726,12 @@ class Spell
         uint32 GetDamage() { return damage; }
         void SetDamage(uint32 newDamage) { damage = newDamage; }
         SpellSchoolMask GetSchoolMask() { return m_spellSchoolMask; }
+        // OnInit use only
+        void SetEffectSkipMask(uint32 mask) { m_effectSkipMask = mask; }
         // OnHit use only
-        uint32 GetTotalTargetDamage() { return m_damage; }
+        uint32 GetTotalTargetDamage() const { return m_damage; }
         void SetTotalTargetValueModifier(float modifier);
+        int32 GetDamageForEffect(SpellEffectIndex effIdx) const { return m_damagePerEffect[effIdx]; }
         // script initialization hook only setters - use only if dynamic - else use appropriate helper
         void SetMaxAffectedTargets(uint32 newValue) { m_affectedTargetCount = newValue; }
         void SetJumpRadius(float newValue) { m_jumpRadius = newValue; }
@@ -745,10 +748,13 @@ class Spell
         void SetEventTarget(WorldObject* object) { m_eventTarget = object; }
 
         // GO casting preparations
-        void SetFakeCaster(Unit* caster) { m_caster = caster; }
+        void SetFakeCaster(Unit* caster) { m_caster = caster; } // also used by dyngo caster emulation
         WorldObject* GetTrueCaster() const { return m_trueCaster; }
         Unit* GetAffectiveCasterOrOwner() const;
 
+        // custom Spell Cast Results
+        void SetParam1(uint32 param1) { m_param1 = param1; }
+        void SetParam2(uint32 param2) { m_param2 = param2; }
         // overrides
         void SetOverridenSpeed(float newSpeed);
         void SetIgnoreRoot(bool state) { m_ignoreRoot = state; }
@@ -890,6 +896,7 @@ class Spell
         SpellScript* m_spellScript;
         AuraScript* m_auraScript; // needed for some checks for value calculation
         int32 m_effectTriggerChance[MAX_EFFECT_INDEX]; // used by effects to roll if they should go off
+        uint32 m_effectSkipMask;
 
         uint32 m_spellState;
         uint32 m_timer;
@@ -1063,6 +1070,7 @@ namespace MaNGOS
                         if (itr->getSource()->IsAOEImmune())
                             continue;
                         break;
+                    default: break;
                 }
 
                 switch (i_TargetType)
