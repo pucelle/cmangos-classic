@@ -266,6 +266,9 @@ class LootTemplate
         class LootGroup                           // A set of loot definitions for items (refs are not allowed)
         {
             public:
+                // Guess the normal quality of the loot template.
+                ItemQualities guessLootQuality() const;
+
                 void AddEntry(LootStoreItem const& item);                 // Adds an entry to the group (at loading stage)
                 bool HasQuestDrop() const;                          // True if group includes at least 1 quest drop entry
                 bool HasQuestDropForPlayer(Player const* player) const;
@@ -288,6 +291,9 @@ class LootTemplate
         using LootGroups = std::vector<LootGroup>;
 
     public:
+        // Guess the normal quality of the loot template.
+        ItemQualities LootTemplate::guessLootQuality() const;
+
         // Adds an entry to the group (at loading stage)
         void AddEntry(LootStoreItem const& item);
         // Rolls for every item in the template and adds the rolled items the the loot
@@ -345,35 +351,6 @@ class LootStore
         char const* m_name;
         char const* m_entryName;
         bool m_ratesAllowed;
-};
-
-class LootTemplate
-{
-        class  LootGroup;                                   // A set of loot definitions for items (refs are not allowed inside)
-        typedef std::vector<LootGroup> LootGroups;
-
-    public:
-        // Guess the normal quality of the loot template.
-        ItemQualities LootTemplate::guessLootQuality() const;
-
-        // Adds an entry to the group (at loading stage)
-        void AddEntry(LootStoreItem& item);
-        // Rolls for every item in the template and adds the rolled items the the loot
-        void Process(Loot& loot, Player const* lootOwner, LootStore const& store, bool rate, uint8 groupId = 0) const;
-
-        // True if template includes at least 1 quest drop entry
-        bool HasQuestDrop(LootTemplateMap const& store, uint8 groupId = 0) const;
-        // True if template includes at least 1 quest drop for an active quest of the player
-        bool HasQuestDropForPlayer(LootTemplateMap const& store, Player const* player, uint8 groupId = 0) const;
-        // True if at least one player fulfils loot condition
-        static bool PlayerOrGroupFulfilsCondition(const Loot& loot, Player const* lootOwner, uint16 conditionId);
-
-        // Checks integrity of the template
-        void Verify(LootStore const& lootstore, uint32 id) const;
-        void CheckLootRefs(LootIdSet* ref_set) const;
-    private:
-        LootStoreItemList Entries;                          // not grouped only
-        LootGroups        Groups;                           // groups have own (optimized) processing, grouped entries go there
 };
 
 //=====================================================

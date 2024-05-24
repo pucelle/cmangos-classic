@@ -15296,7 +15296,7 @@ void Player::_LoadSpells(std::unique_ptr<QueryResult> queryResult)
         int guid = GetGUIDLow();
 
         // Select spells from other characters.
-        QueryResult* sharedSpells = CharacterDatabase.PQuery(
+        std::unique_ptr<QueryResult> sharedSpells = CharacterDatabase.PQuery(
             "select spell, active, disabled"\
             "    from character_spell"\
             "    where guid in ("\
@@ -15381,12 +15381,10 @@ void Player::_LoadSpells(std::unique_ptr<QueryResult> queryResult)
                     addSpell(spellId, fields[1].GetBool(), false, false, fields[2].GetBool());
                 }
             } while (sharedSpells->NextRow());
-
-            delete sharedSpells;
         }
 
         if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ACCOUNT_SHARES_FINDING_TREASURE)) {
-            QueryResult* hasDrawfSearch = CharacterDatabase.PQuery(
+            std::unique_ptr<QueryResult> hasDrawfSearch = CharacterDatabase.PQuery(
                 "select exists(select * from characters where account in ("\
                 "    select account"\
                 "        from characters"\
@@ -19629,7 +19627,7 @@ void Player::_LoadSkills(std::unique_ptr<QueryResult> queryResult)
     {
         int guid = GetGUIDLow();
 
-        QueryResult* sharedSkills = CharacterDatabase.PQuery(
+        std::unique_ptr<QueryResult> sharedSkills = CharacterDatabase.PQuery(
             "select skill, max(value) as value, max(max) as max"\
             "    from character_skills"\
             "    where guid in ("\
@@ -19742,8 +19740,6 @@ void Player::_LoadSkills(std::unique_ptr<QueryResult> queryResult)
                 }
             }
             while (sharedSkills->NextRow());
-
-            delete sharedSkills;
         }
     }
 

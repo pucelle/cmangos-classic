@@ -57,29 +57,6 @@ LootStore LootTemplates_Pickpocketing("pickpocketing_loot_template", "creature p
 LootStore LootTemplates_Reference("reference_loot_template",    "reference id",                   false);
 LootStore LootTemplates_Skinning("skinning_loot_template",     "creature skinning id",           true);
 
-class LootTemplate::LootGroup                               // A set of loot definitions for items (refs are not allowed)
-{
-    public:
-        // Guess the normal quality of the loot group.
-        ItemQualities guessLootQuality() const;
-
-        void AddEntry(LootStoreItem& item);                 // Adds an entry to the group (at loading stage)
-        bool HasQuestDrop() const;                          // True if group includes at least 1 quest drop entry
-        bool HasQuestDropForPlayer(Player const* player) const;
-        // The same for active quests of the player
-        void Process(Loot& loot, Player const* lootOwner) const; // Rolls an item from the group (if any) and adds the item to the loot
-        float RawTotalChance() const;                       // Overall chance for the group (without equal chanced items)
-        float TotalChance() const;                          // Overall chance for the group
-
-        void Verify(LootStore const& lootstore, uint32 id, uint32 group_id) const;
-        void CheckLootRefs(LootIdSet* ref_set) const;
-    private:
-        LootStoreItemList ExplicitlyChanced;                // Entries with chances defined in DB
-        LootStoreItemList EqualChanced;                     // Zero chances - every entry takes the same chance
-
-        LootStoreItem const* Roll(Loot const& loot, Player const* lootOwner) const; // Rolls an item from the group, returns nullptr if all miss their chances
-};
-
 // Remove all data and free all memory
 void LootStore::Clear()
 {

@@ -118,7 +118,7 @@ void WorldSession::HandleQuestgiverAcceptQuestOpcode(WorldPacket& recv_data)
     uint32 quest;
     recv_data >> guid >> quest;
 
-#ifdef BUILD_PLAYERBOT
+#ifdef BUILD_DEPRECATED_PLAYERBOT
     // Player Bot can have this quest even NPC is not interactive.
     bool beBoot = _player->GetPlayerbotAI();
     if (!(beBoot || CanInteractWithQuestGiver(guid, "CMSG_QUESTGIVER_ACCEPT_QUEST")))
