@@ -374,8 +374,8 @@ bool LootStore::IsValidItemTemplate(uint32 entry, uint32 itemId, uint32 group, i
 ItemQualities LootStoreItem::guessLootQuality() const {
 
     // Looking for at reference template.
-    if (this->mincountOrRef < 0) {
-        LootTemplate const* referenceTemplate = LootTemplates_Reference.GetLootFor(this->mincountOrRef);
+    if (mincountOrRef < 0) {
+        LootTemplate const* referenceTemplate = LootTemplates_Reference.GetLootFor(-this->mincountOrRef);
         if (referenceTemplate) {
             return referenceTemplate->guessLootQuality();
         }
@@ -400,7 +400,12 @@ bool LootStoreItem::Roll(bool rate) const
         return true;
 
     if (mincountOrRef < 0)                                  // reference case
-        return roll_chance_f(chance * (rate ? sWorld.getConfig(CONFIG_FLOAT_RATE_DROP_ITEM_REFERENCED) : 1.0f));
+        //return roll_chance_f(chance * (rate ? sWorld.getConfig(CONFIG_FLOAT_RATE_DROP_ITEM_REFERENCED) : 1.0f));
+    {
+        ItemQualities quality = guessLootQuality();
+        float qualityModifier = sWorld.getConfig(qualityToRate[quality]);
+        return roll_chance_f(chance * qualityModifier);
+    }
 
     if (needs_quest)
         return roll_chance_f(chance * (rate ? sWorld.getConfig(CONFIG_FLOAT_RATE_DROP_ITEM_QUEST) : 1.0f));
