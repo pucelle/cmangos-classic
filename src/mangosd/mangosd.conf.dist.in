@@ -1978,3 +1978,7 @@ GameEnhance.Dungen40ManCreatureHealthRate = 1
 # 40 Man dungen creature's damage rate.
 # Default value is `1`.
 GameEnhance.Dungen40ManCreatureDamageRate = 1
+
+# Increase or decrease battleground preparation wait time.
+# Default value is `1`.
+GameEnhance.BattleGroundWaitTimeRate = 1

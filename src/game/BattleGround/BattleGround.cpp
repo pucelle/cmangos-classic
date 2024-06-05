@@ -348,6 +348,11 @@ void BattleGround::Update(uint32 diff)
     if (GetStatus() == STATUS_WAIT_JOIN && GetPlayersSize())
     {
         float maxDist = GetStartMaxDist();
+
+        float waitTimeRate = 1.0;
+        if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED))
+            waitTimeRate = sWorld.getConfig(CONFIG_GAME_ENHANCE_BATTLE_GROUND_WAIT_TIME_RATE);
+
         if (maxDist > 0.0f)
         {
             if (m_validStartPositionTimer < diff)
@@ -377,19 +382,19 @@ void BattleGround::Update(uint32 diff)
             m_events |= BG_STARTING_EVENT_1;
 
             StartingEventCloseDoors();
-            SetStartDelayTime(m_startDelayTimes[BG_STARTING_EVENT_FIRST]);
+            SetStartDelayTime(m_startDelayTimes[BG_STARTING_EVENT_FIRST] * waitTimeRate);
             // first start warning - 2 or 1 minute, only if defined
             if (m_startMessageIds[BG_STARTING_EVENT_FIRST])
                 SendMessageToAll(m_startMessageIds[BG_STARTING_EVENT_FIRST], CHAT_MSG_BG_SYSTEM_NEUTRAL);
         }
         // After 1 minute or 30 seconds, warning is signalled
-        else if (GetStartDelayTime() <= m_startDelayTimes[BG_STARTING_EVENT_SECOND] && !(m_events & BG_STARTING_EVENT_2))
+        else if (GetStartDelayTime() <= m_startDelayTimes[BG_STARTING_EVENT_SECOND] * waitTimeRate && !(m_events & BG_STARTING_EVENT_2))
         {
             m_events |= BG_STARTING_EVENT_2;
             SendMessageToAll(m_startMessageIds[BG_STARTING_EVENT_SECOND], CHAT_MSG_BG_SYSTEM_NEUTRAL);
         }
         // After 30 or 15 seconds, warning is signalled
-        else if (GetStartDelayTime() <= m_startDelayTimes[BG_STARTING_EVENT_THIRD] && !(m_events & BG_STARTING_EVENT_3))
+        else if (GetStartDelayTime() <= m_startDelayTimes[BG_STARTING_EVENT_THIRD] * waitTimeRate && !(m_events & BG_STARTING_EVENT_3))
         {
             m_events |= BG_STARTING_EVENT_3;
             SendMessageToAll(m_startMessageIds[BG_STARTING_EVENT_THIRD], CHAT_MSG_BG_SYSTEM_NEUTRAL);
@@ -403,9 +408,9 @@ void BattleGround::Update(uint32 diff)
 
             SendMessageToAll(m_startMessageIds[BG_STARTING_EVENT_FOURTH], CHAT_MSG_BG_SYSTEM_NEUTRAL);
             SetStatus(STATUS_IN_PROGRESS);
-            SetStartDelayTime(m_startDelayTimes[BG_STARTING_EVENT_FOURTH]);
+            SetStartDelayTime(m_startDelayTimes[BG_STARTING_EVENT_FOURTH] * waitTimeRate);
 
-            SetStartDelayTime(m_startDelayTimes[BG_STARTING_EVENT_FOURTH]);
+            SetStartDelayTime(m_startDelayTimes[BG_STARTING_EVENT_FOURTH] * waitTimeRate);
 
             {
                 PlaySoundToAll(SOUND_BG_START);

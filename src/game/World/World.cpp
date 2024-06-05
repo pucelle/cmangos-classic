@@ -878,6 +878,7 @@ void World::LoadConfigSettings(bool reload)
     setConfigMinMax(CONFIG_GAME_ENHANCE_DUNGEON_20MAN_CREATURE_DAMAGE_RATE, "GameEnhance.Dungen20ManCreatureDamageRate", 1.0f, 0.1f, 2.0f);
     setConfigMinMax(CONFIG_GAME_ENHANCE_DUNGEON_40MAN_CREATURE_HEALTH_RATE, "GameEnhance.Dungen40ManCreatureHealthRate", 1.0f, 0.1f, 2.0f);
     setConfigMinMax(CONFIG_GAME_ENHANCE_DUNGEON_40MAN_CREATURE_DAMAGE_RATE, "GameEnhance.Dungen40ManCreatureDamageRate", 1.0f, 0.1f, 2.0f);
+    setConfigMinMax(CONFIG_GAME_ENHANCE_BATTLE_GROUND_WAIT_TIME_RATE, "GameEnhance.BattleGroundWaitTimeRate", 1.0f, 0.1f, 2.0f);
     sLog.outString();
 }
 
