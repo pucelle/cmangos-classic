@@ -738,6 +738,10 @@ float FollowMovementGenerator::GetSpeed(Unit& owner) const
     if (owner.HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PLAYER_CONTROLLED) == i_target->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PLAYER_CONTROLLED))
     {
 #ifdef ENABLE_PLAYERBOTS
+        // If master target is in combat, use own speed.
+        if (i_target->IsInCombat())
+            return speed;
+
         if (!(!m_boost && owner.IsPlayer() && !((Player*)(&owner))->isRealPlayer())) //Do not speed up bots when not boosting. 
 #endif
         speed = i_target->GetSpeedInMotion();
