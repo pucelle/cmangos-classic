@@ -659,7 +659,7 @@ void BattleGround::RewardReputationToTeam(uint32 factionId, uint32 reputation, T
         if (team != ALLIANCE && team != HORDE) team = player->GetTeam();
 
         if (team == teamId)
-            player->GetReputationMgr().ModifyReputation(factionEntry, reputation);
+            player->GetReputationMgr().ModifyReputation(factionEntry, reputation * sWorld.getConfig(CONFIG_FLOAT_RATE_REPUTATION_GAIN));
     }
 }
 

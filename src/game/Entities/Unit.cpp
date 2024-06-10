@@ -375,9 +375,7 @@ Unit::Unit() :
     m_auraModifiersGroup[UNIT_MOD_DAMAGE_OFFHAND][TOTAL_PCT] = 0.5f;
 
     // Reset offhand damage.
-    if (IsPlayer()
-        && sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED))
-    {
+    if (IsPlayer() && sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED)) {
         m_auraModifiersGroup[UNIT_MOD_DAMAGE_OFFHAND][TOTAL_PCT] = sWorld.getConfig(CONFIG_GAME_ENHANCE_OFFHAND_DAMAGE_RATE);
     }
 
