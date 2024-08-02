@@ -1982,3 +1982,15 @@ GameEnhance.Dungen40ManCreatureDamageRate = 1
 # Increase or decrease battleground preparation wait time.
 # Default value is `1`.
 GameEnhance.BattleGroundWaitTimeRate = 1
+
+# Gain full xp ignore other group member level.
+# Default value is `false`.
+GameEnhance.FullXPGainInGroup = false
+
+# Whether world buffs will apply to pet.
+# Default value is false.
+GameEnhance.WorldBuffApplyToPet = false
+
+# Whether world buffs of pet not consume after logout, just like player.
+# Default value is false.
+GameEnhance.PetWorldBuffNotConsumeAfterLogout = false

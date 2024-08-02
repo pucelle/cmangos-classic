@@ -1766,7 +1766,13 @@ void Pet::_LoadAuras(uint32 timediff)
             if (casterGuid != GetObjectGuid() && sSpellMgr.IsSingleTargetSpell(spellproto))
                 continue;
 
-            if (remaintime != -1)
+            if (remaintime != -1
+                && (
+                   sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED)
+                    && sWorld.getConfig(CONFIG_GAME_ENHANCE_PET_WORLD_BUFF_NOT_CONSUME_AFTER_LOGOUT)
+                    && (spellproto->HasAttribute(SPELL_ATTR_EX4_AURA_EXPIRES_OFFLINE) || !IsPositiveSpell(spellproto))
+                )
+            )
             {
                 if (remaintime / IN_MILLISECONDS <= int32(timediff))
                     continue;

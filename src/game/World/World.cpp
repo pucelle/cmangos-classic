@@ -879,6 +879,10 @@ void World::LoadConfigSettings(bool reload)
     setConfigMinMax(CONFIG_GAME_ENHANCE_DUNGEON_40MAN_CREATURE_HEALTH_RATE, "GameEnhance.Dungen40ManCreatureHealthRate", 1.0f, 0.1f, 2.0f);
     setConfigMinMax(CONFIG_GAME_ENHANCE_DUNGEON_40MAN_CREATURE_DAMAGE_RATE, "GameEnhance.Dungen40ManCreatureDamageRate", 1.0f, 0.1f, 2.0f);
     setConfigMinMax(CONFIG_GAME_ENHANCE_BATTLE_GROUND_WAIT_TIME_RATE, "GameEnhance.BattleGroundWaitTimeRate", 1.0f, 0.1f, 2.0f);
+    setConfig(CONFIG_GAME_ENHANCE_FULL_XP_GAIN_IN_GROUP, "GameEnhance.FullXPGainInGroup", false);
+    setConfig(CONFIG_GAME_ENHANCE_WORLD_BUFF_APPLY_TO_PET, "GameEnhance.WorldBuffApplyToPet", false);
+    setConfig(CONFIG_GAME_ENHANCE_PET_WORLD_BUFF_NOT_CONSUME_AFTER_LOGOUT, "GameEnhance.PetWorldBuffNotConsumeAfterLogout", false);
+
     sLog.outString();
 }
 

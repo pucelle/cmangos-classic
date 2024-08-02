@@ -1858,6 +1858,22 @@ void Spell::EffectApplyAura(SpellEffectIndex eff_idx)
 
     Aura* aur = CreateAura(m_spellInfo, eff_idx, &damage, &m_currentBasePoints[eff_idx], m_spellAuraHolder, unitTarget, caster, m_CastItem, GetScriptValue());
     m_spellAuraHolder->AddAura(aur, eff_idx);
+
+    // Apply some buffs also to pet.
+    if (unitTarget->GetTypeId() == TYPEID_PLAYER
+        && sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED)
+        && sWorld.getConfig(CONFIG_GAME_ENHANCE_WORLD_BUFF_APPLY_TO_PET)
+    )
+    {
+        Pet* pet = ((Player*)unitTarget)->GetPet();
+        if (pet && m_spellInfo->Id == 15366)
+        {
+            SpellAuraHolder* petHolder = CreateSpellAuraHolder(m_spellInfo, pet, caster);
+            Aura* aur = CreateAura(m_spellInfo, eff_idx, &damage, &m_currentBasePoints[eff_idx], petHolder, pet, caster, m_CastItem, GetScriptValue());
+            petHolder->AddAura(aur, eff_idx);
+            pet->AddSpellAuraHolder(petHolder);
+        }
+    }
 }
 
 void Spell::EffectPowerDrain(SpellEffectIndex eff_idx)

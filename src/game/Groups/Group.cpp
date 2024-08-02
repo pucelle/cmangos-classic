@@ -1507,6 +1507,11 @@ static void RewardGroupAtKill_helper(Player* pGroupGuy, Unit* pVictim, uint32 co
             {
                 float itr_xp = (member_with_max_level == not_gray_member_with_max_level) ? xp * rate : (xp * rate * 0.5f) + 1.0f;
 
+                // Gain full xp rate.
+                if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED) && sWorld.getConfig(CONFIG_GAME_ENHANCE_FULL_XP_GAIN_IN_GROUP)) {
+                    itr_xp = xp * rate;
+                }
+
                 pGroupGuy->GiveXP((uint32)(std::round(itr_xp)), creatureVictim, group_rate);
                 if (Pet* pet = pGroupGuy->GetPet())
                 {
@@ -1569,6 +1574,11 @@ void Group::RewardGroupAtKill(Unit* pVictim, Player* player_tap)
 
             if (!pGroupGuy->IsAtGroupRewardDistance(pVictim))
                 continue;                               // member (alive or dead) or his corpse at req. distance
+            
+            // Gain experience all by player self level.
+            if (sWorld.getConfig(CONFIG_GAME_ENHANCE_ENABLED) && sWorld.getConfig(CONFIG_GAME_ENHANCE_FULL_XP_GAIN_IN_GROUP) && xp > 0) {
+                xp = MaNGOS::XP::Gain(pGroupGuy, static_cast<Creature*>(pVictim));
+            }
 
             RewardGroupAtKill_helper(pGroupGuy, pVictim, count, PvP, group_rate, sum_level, is_dungeon, not_gray_member_with_max_level, member_with_max_level, xp);
         }
