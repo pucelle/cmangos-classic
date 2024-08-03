@@ -1823,10 +1823,6 @@ GameEnhance.PetGainStatRate = 0
 # Default value is 0, betweens 0~1.
 GameEnhance.PetGainAttactPowerRate = 0
 
-# The rate that pets gain from it's owner's critical chance,
-# Default value is 0, betweens 0~1.
-GameEnhance.PetGainCriticalRate = 0
-
 # The rate that restore health when sitting compare with standing.
 # Default value is 1.5, betweens 1~5.
 GameEnhance.RestoreHealthRateWhenSit = 1.5

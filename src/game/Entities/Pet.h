@@ -228,13 +228,10 @@ class Pet : public Creature
         void SetBonusDamage(int32 damage) { m_bonusdamage = damage; }
 
         bool UpdateStats(Stats stat) override;
-        bool UpdateAllStats() override;
-        void UpdateResistances(uint32 school) override;
-        void UpdateArmor() override;
         void UpdateMaxHealth() override;
         void UpdateMaxPower(Powers power) override;
         void UpdateAttackPowerAndDamage(bool ranged = false) override;
-        void UpdateDamagePhysical(WeaponAttackType attType) override;
+        float GetConditionalTotalPhysicalDamageModifier(WeaponAttackType type) const override;
 
         bool   CanTakeMoreActiveSpells(uint32 spellid) const;
         void   ToggleAutocast(uint32 spellid, bool apply);
@@ -306,12 +303,6 @@ class Pet : public Creature
         void ResetCorpseRespawn();
 
         void ForcedDespawn(uint32 timeMSToDespawn = 0, bool onlyAlive = false) override;
-
-        /** Update pet's critical percentage to make it gain from player property. */
-        void GainCriticalChance();
-
-        /** Update pet's dodge percentage to make it gain from player property. */
-        void GainDodgeChance();
 
     protected:
         uint32  m_happinessTimer;

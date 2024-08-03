@@ -838,8 +838,6 @@ void World::LoadConfigSettings(bool reload)
     setConfigMinMax(CONFIG_GAME_ENHANCE_MAGE_PET_DAMAGE_BONUS_RATE, "GameEnhance.MagePetDamageBonusRate", 0.4f, 0.0f, 1.0f);
     setConfigMinMax(CONFIG_GAME_ENHANCE_PET_GAIN_STAT_RATE, "GameEnhance.PetGainStatRate", 0.0f, 0.0f, 1.0f);
     setConfigMinMax(CONFIG_GAME_ENHANCE_PET_GAIN_ATTACK_POWER_RATE, "GameEnhance.PetGainAttactPowerRate", 0.0f, 0.0f, 1.0f);
-    setConfigMinMax(CONFIG_GAME_ENHANCE_PET_GAIN_CRITICAL_RATE, "GameEnhance.PetGainCriticalRate", 0.0f, 0.0f, 1.0f);
-    setConfigMinMax(CONFIG_GAME_ENHANCE_PET_GAIN_DODGE_RATE, "GameEnhance.PetGainDodgeRate", 0.0f, 0.0f, 1.0f);
     setConfigMinMax(CONFIG_GAME_ENHANCE_RESTORE_HEALTH_RATE_IN_COMBAT, "GameEnhance.RestoreHealthRateInCombat", 0.0f, 0.0f, 1.0f);
     setConfigMinMax(CONFIG_GAME_ENHANCE_RESTORE_HEALTH_RATE_WHEN_SIT, "GameEnhance.RestoreHealthRateWhenSit", 1.5f, 1.0f, 5.0f);
     setConfigMinMax(CONFIG_GAME_ENHANCE_CRIT_FROM_AGILITY_RATE, "GameEnhance.CritFromAgilityRate", 0.0f, 0.0f, 100.0f);
