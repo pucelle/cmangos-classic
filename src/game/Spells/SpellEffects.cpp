@@ -1866,8 +1866,24 @@ void Spell::EffectApplyAura(SpellEffectIndex eff_idx)
     )
     {
         Pet* pet = ((Player*)unitTarget)->GetPet();
-        if (pet && m_spellInfo->Id == 15366)
-        {
+        if (pet
+            && (m_spellInfo->Id == 15366
+                || m_spellInfo->Id == 22888
+                || m_spellInfo->Id == 16609
+                || m_spellInfo->Id == 24425
+                || m_spellInfo->Id == 22817
+                || m_spellInfo->Id == 22818
+                || m_spellInfo->Id == 22820
+                || m_spellInfo->Id == 22735
+                || m_spellInfo->Id == 23736
+                || m_spellInfo->Id == 22737
+                || m_spellInfo->Id == 23738
+                || m_spellInfo->Id == 23766
+                || m_spellInfo->Id == 23767
+                || m_spellInfo->Id == 23768
+                || m_spellInfo->Id == 23769
+            )
+        ) {
             SpellAuraHolder* petHolder = CreateSpellAuraHolder(m_spellInfo, pet, caster);
             Aura* aur = CreateAura(m_spellInfo, eff_idx, &damage, &m_currentBasePoints[eff_idx], petHolder, pet, caster, m_CastItem, GetScriptValue());
             petHolder->AddAura(aur, eff_idx);

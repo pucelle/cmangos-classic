@@ -27,6 +27,10 @@
 #include "Entities/UpdateData.h"
 #include "Chat/Chat.h"
 
+#ifdef ENABLE_PLAYERBOTS
+#include "ahbot/AhBot.h"
+#endif
+
 void WorldSession::HandleSplitItemOpcode(WorldPacket& recv_data)
 {
     // DEBUG_LOG("WORLD: CMSG_SPLIT_ITEM");
@@ -310,7 +314,14 @@ void WorldSession::HandleItemQuerySingleOpcode(WorldPacket& recv_data)
         data << pProto->Quality;
         data << pProto->Flags;
         data << pProto->BuyPrice;
+
+        // Make selling items to auction easier.
+        #ifdef ENABLE_PLAYERBOTS
+        data << std::max(uint32(auctionbot.GetBuyPrice(pProto) * 0.6666), pProto->SellPrice);
+        #else
         data << pProto->SellPrice;
+        #endif
+
         data << pProto->InventoryType;
         data << pProto->AllowableClass;
         data << pProto->AllowableRace;
